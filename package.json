@@ -1,0 +1,46 @@
+{
+  "name": "@oldmanwalk/lark-codex-tasks",
+  "version": "0.1.0",
+  "description": "飞书/Lark ↔ Codex 任务群工作流：私聊派活、自动建群、审批卡片、排队续接、归档结算。Task-group workflow bridging Feishu/Lark with a local Codex CLI.",
+  "keywords": [
+    "feishu",
+    "lark",
+    "codex",
+    "openai-codex",
+    "ai-agent",
+    "coding-agent",
+    "task-workflow",
+    "chatops",
+    "飞书",
+    "任务群"
+  ],
+  "author": "OldManWalk",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OldManWalk/lark-codex-tasks.git"
+  },
+  "homepage": "https://github.com/OldManWalk/lark-codex-tasks#readme",
+  "bugs": "https://github.com/OldManWalk/lark-codex-tasks/issues",
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "linux"
+  ],
+  "bin": {
+    "lark-codex-tasks": "./install.sh"
+  },
+  "scripts": {
+    "test": "node --test *.test.cjs"
+  },
+  "files": [
+    "*.cjs",
+    "*.sh",
+    "install.sh",
+    "examples/",
+    "docs/",
+    "README.md",
+    "LICENSE"
+  ]
+}

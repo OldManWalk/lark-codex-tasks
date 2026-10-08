@@ -8,14 +8,14 @@ test('scratch runs directly even with a malformed Git placeholder',t=>{const f=f
 test('two scratch groups run with separate threads under the global worker limit',async t=>{
  const {s,clients,workspace,config}=fixture(t),scratch=path.join(workspace,'scratch');
  fs.mkdirSync(scratch);atomic(config,{a:path.join(workspace,'a'),scratch});
- const first=await s.start('scratch','OpenClaw task','oc_openclaw','om_s1');
+ const first=await s.start('scratch','DemoBot task','oc_demobot','om_s1');
  const second=await s.start('scratch','VPS research','oc_vps','om_s2');
  assert.notEqual(s.jobs.get(first).threadId,s.jobs.get(second).threadId);
- assert.equal(s.jobs.get(first).chat,'oc_openclaw');
+ assert.equal(s.jobs.get(first).chat,'oc_demobot');
  assert.equal(s.jobs.get(second).chat,'oc_vps');
  await assert.rejects(s.start('scratch','third task','oc_third','om_s3'),/已有 2 个任务/);
  clients[0].resolve({message:'done'});await new Promise(r=>setImmediate(r));
- const followup=await s.continueJob(first,'continue','oc_openclaw','om_s4');
+ const followup=await s.continueJob(first,'continue','oc_demobot','om_s4');
  assert.notEqual(s.jobs.get(followup).threadId,s.jobs.get(second).threadId);
  clients[1].resolve({message:'done'});clients[2].resolve({message:'done'});
 });

@@ -1,8 +1,12 @@
-# lark-codex-tasks
+<p align="center">
+  <img src="docs/logo.png" alt="lark-codex-tasks logo" width="160">
+</p>
+
+<h1 align="center">lark-codex-tasks</h1>
 
 **飞书 ↔ Codex 任务群工作流**——在飞书私聊里一句话派活，机器人自动建任务群、驱动你服务器上的 [Codex CLI](https://github.com/openai/codex) 干活，审批用交互卡片，完成后一键结算归档并解散群。
 
-![License](https://img.shields.io/badge/license-MIT-blue) ![Platform](https://img.shields.io/badge/platform-Linux%20%2B%20systemd-lightgrey) ![Runtime](https://img.shields.io/badge/runtime-Node%20%E2%89%A518-green) ![Tests](https://img.shields.io/badge/tests-137%20passed-brightgreen)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Platform](https://img.shields.io/badge/platform-Linux%20%2B%20systemd-lightgrey) ![Runtime](https://img.shields.io/badge/runtime-Node%20%E2%89%A518-green) ![Tests](https://img.shields.io/badge/tests-137%20passed-brightgreen)
 
 > 手机掏出来发一句"帮我建个群管理 OpenWrt 路由器"，剩下的在群里看着它干。
 
@@ -47,7 +51,7 @@
   "帮我建一个群，目标是连接 OpenWrt 并帮我管理路由器配置"
 
 机器人（私聊）:
-  "收到。已建群「🔵 OpenWrt 路由器管理 ·d0fdb5」，群内说明目标即可开工。"
+  "收到。已建群「🔵 OpenWrt 路由器管理 ·a1b2c3」，群内说明目标即可开工。"
 
   （群内）任务卡：目标 / 工作区 / 执行模式
 
@@ -67,7 +71,7 @@ Codex（在工作区里干活，需要改系统配置时）:
 你（三小时后看到，点 ✅）: 继续执行        ← 无超时，点了就生效
 
 机器人（群内结果卡）:
-  "✅ 完成 · 用时 42 分钟 · codex resume 01a11939-…（任意终端可接管）"
+  "✅ 完成 · 用时 42 分钟 · codex resume 1f2a3b4c-…（任意终端可接管）"
 
 你（群内）: "/done"
   → 结论写入 knowledge/content/任务归档/<id>.md（自动 git commit）
@@ -199,6 +203,9 @@ cd lark-codex-tasks
 
 管理命令：`./install.sh status | logs | update | uninstall`。
 
+> [!WARNING]
+> 审批卡片按钮依赖飞书后台的 `card.action.trigger` 回调（长连接方式）。没配的话按钮点了没反应——这是最常见的部署坑，配置步骤见 [docs/feishu-app-setup.md](docs/feishu-app-setup.md)。
+
 ### 第一次任务
 
 1. 飞书里私聊机器人：`/ping` → 收到回执即链路通。
@@ -260,6 +267,9 @@ cd lark-codex-tasks
 - `scratch`：通用工作区，可同时运行两个互不共享会话的任务（文件仍共享）。
 - 代码项目：git worktree 隔离，同项目串行；接续前自动 checkpoint 上一 worktree。
 
+> [!TIP]
+> 第一次接入真实服务器建议先用 `safe` 模式跑几天，确认它的判断符合预期后再放权的模式。
+
 ## 安全模型
 
 | 威胁 | 防线 |
@@ -274,6 +284,9 @@ cd lark-codex-tasks
 | 会话串味 | 私聊/任务群命名空间物理分离；任务通知永不进私聊 |
 
 **它不会做的**：不响应非 owner；不主动重启自己；不把任务通知发进私聊；不在群里执行 `/run` `/group` `/resume` `/reopen`（这些仅限私聊）。
+
+> [!IMPORTANT]
+> lark-codex-tasks 是严格的单用户（owner-only）设计：只有你 `LARK_OWNER_OPEN_ID` 这一个人能指挥机器人。请勿把它当成多人协作机器人部署。
 
 ## 测试
 
@@ -300,9 +313,11 @@ journalctl --user -u lark-codex-tasks -f     # 跟踪日志
 ./install.sh uninstall                       # 卸载（保留配置与状态）
 ```
 
-- **部署纪律**：重启服务会中断运行中的任务（标 `interrupted`）并使内存中待审批失效——确认 `/jobs` 无运行项再重启。
 - **备份**：`LCT_STATE_DIR` 整个目录 + `bridge.env` + `projects.json` 即全部状态。
 - **开机自启（免登录）**：`sudo loginctl enable-linger $USER`。
+
+> [!CAUTION]
+> 重启服务会中断运行中的任务（标 `interrupted`）并使内存中待审批失效——确认 `/jobs` 无运行项再重启。
 
 ## 故障排查 FAQ
 
@@ -348,10 +363,6 @@ journalctl --user -u lark-codex-tasks -f     # 跟踪日志
 ## 商标与免责声明
 
 飞书、Lark 是北京抖音信息服务有限公司（ByteDance）的商标；Codex、OpenAI 是 OpenAI 的商标。本项目为个人开源作品，与上述公司无任何隶属、背书或合作关系。本项目按 MIT 协议"原样"提供，作者不对使用后果承担责任；请自行评估将 AI agent 接入生产服务器的风险（建议先用 `safe` 模式）。
-
-## License
-
-[MIT](LICENSE) © 2026 OldManWalk
 
 ---
 

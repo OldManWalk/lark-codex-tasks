@@ -54,7 +54,7 @@ test('OpenWrt is an equipment target, not an unregistered project; a fresh route
  const {runs,starts}=mockCodex(t,dmModel((task,rec)=>rec.kind==='lct-chat'
    ?action('create_group','openwrt','配置路由器','','OpenWrt 路由器配置','',true)
    :action('create_group','','配置路由器','','OpenWrt 路由器配置','',false)));
- const request='小任帮我建一个群，目标是 连接OpenWrt 并帮我管理路由器配置一些东西的';
+ const request='哈基峰帮我建一个群，目标是 连接OpenWrt 并帮我管理路由器配置一些东西的';
  await a.respond(msg('p2p','oc_dm',request,'om_OPENWRT_TARGET'));
  assert(await until(()=>a.dispatches.om_OPENWRT_TARGET?.status==='done'));
  assert.equal(a.supervisor.jobs.get(a.groups.oc_new.anchor).alias,'scratch');
@@ -71,7 +71,7 @@ test('router configuration group works when a product is mistakenly named as the
  mockCodex(t,dmModel((task,rec)=>rec.kind==='lct-chat'
    ?action('create_group','openwrt','配置路由器','','路由器配置','',true)
    :action('create_group','','配置路由器','','路由器配置','',false)));
- await a.respond(msg('p2p','oc_dm','小任帮我建一个群，工作的内容是配置路由器','om_ROUTER_CONFIG'));
+ await a.respond(msg('p2p','oc_dm','哈基峰帮我建一个群，工作的内容是配置路由器','om_ROUTER_CONFIG'));
  assert(await until(()=>a.dispatches.om_ROUTER_CONFIG?.status==='done'));
  assert.equal(a.supervisor.jobs.get(a.groups.oc_new.anchor).alias,'scratch');
 });
@@ -82,7 +82,7 @@ test('an explicit group request overrides a hallucinated DM reply after a statel
  const {starts}=mockCodex(t,dmModel((task,rec)=>rec.kind==='lct-chat'
    ?action('reply','','','此前已提交过两次，请自行检查飞书。')
    :action('create_group','','','','待补充需求','',false)));
- await a.respond(msg('p2p','oc_dm','小任帮我建一个群','om_GROUP_RETRY'));
+ await a.respond(msg('p2p','oc_dm','哈基峰帮我建一个群','om_GROUP_RETRY'));
  assert(await until(()=>a.dispatches.om_GROUP_RETRY?.status==='done'));
  assert.equal(a.supervisor.jobs.get(a.groups.oc_new.anchor).alias,'scratch');
  assert.equal(starts.find(x=>x.instr.includes('独立的私聊动作复核器')).resume,null);
@@ -93,11 +93,11 @@ test('an explicit group request overrides a hallucinated DM reply after a statel
 // ── N01：项目不明确的派活意图只询问，不调用 DM 执行工具、不建议未注册项目 ──
 test('N01a: explicit task intent with unknown project only asks; zero DM execution',async t=>{
  const {a,calls}=bridge(t);
- const {runs}=mockCodex(t,dmModel(()=>action('create_group','openclaw','部署 openclaw 到生产环境')));
- const r=await a.respond(msg('p2p','oc_dm','新起一个任务 部署 openclaw 到生产环境','om_N1'));
+ const {runs}=mockCodex(t,dmModel(()=>action('create_group','demobot','部署 demobot 到生产环境')));
+ const r=await a.respond(msg('p2p','oc_dm','新起一个任务 部署 demobot 到生产环境','om_N1'));
  assert.match(r,/处理中，稍后回报/);
  assert(await until(()=>a.queues.oc_dm.items[0].status==='done'));
- assert(calls.some(c=>c.includes('oc_dm')&&c.some(x=>typeof x==='string'&&x.includes('未知或不可用项目: openclaw'))));
+ assert(calls.some(c=>c.includes('oc_dm')&&c.some(x=>typeof x==='string'&&x.includes('未知或不可用项目: demobot'))));
  assert.equal(runs.length,2,'未知项目由独立动作复核器再次确认');
  assert(runs[0].options.outputSchema,'模型请求带结构化输出约束');
  assert.equal(Object.keys(a.dispatches).length,0,'未创建派活意图');
@@ -138,42 +138,42 @@ test('group-first request creates a scratch group and continues its own new thre
  assert.equal(job.chat,'oc_new');
  assert(await until(()=>job.status==='completed'));
  assert.equal(calls.filter(c=>c.includes('+chat-create')).length,1,'只建一个群');
- await a.respond(msg('group','oc_new','调研 OpenClaw 的部署方案','om_GROUP_FOLLOWUP'));
+ await a.respond(msg('group','oc_new','调研 DemoBot 的部署方案','om_GROUP_FOLLOWUP'));
  assert(await until(()=>runs.length===3),'群内后续消息启动');
  assert.equal(starts[2].resume,job.threadId,'续接本群线程');
- assert.match(a.groups.oc_new.title,/调研 OpenClaw 的部署方案/);
+ assert.match(a.groups.oc_new.title,/调研 DemoBot 的部署方案/);
  assert.doesNotMatch(a.groups.oc_new.title,/scratch/);
  assert.equal(a.queues.oc_dm.items[0].status,'done');
 });
 
-test('archived sub2api request restores the latest thread in a new group',async t=>{
+test('archived edgeapi request restores the latest thread in a new group',async t=>{
  const thread='01a0ec2e-c33b-7770-b5f0-bb6788114e31';
- const old='oc_old_sub2api';
+ const old='oc_old_edgeapi';
  const jobs={
-  'c1b3e555412a':{id:'c1b3e555412a',alias:'scratch',chat:old,task:'调研 sub2api 部署方案',threadId:thread,status:'completed',started:1,cwd:'/unused'},
+  'c1b3e555412a':{id:'c1b3e555412a',alias:'scratch',chat:old,task:'调研 edgeapi 部署方案',threadId:thread,status:'completed',started:1,cwd:'/unused'},
   '13dce94963f3':{id:'13dce94963f3',alias:'scratch',chat:old,task:'我有新的想法',threadId:thread,status:'completed',started:2,cwd:'/unused',continuedFrom:'c1b3e555412a'}
  };
  const seed=Object.fromEntries(Object.entries(jobs).map(([id,j])=>['jobs/'+id+'/state.json',j]));
  const {a,calls}=bridge(t,{seed});
- const {starts,runs}=mockCodex(t,dmModel(()=>action('resume_task','','','','sub2api 方案续接','sub2api')));
+ const {starts,runs}=mockCodex(t,dmModel(()=>action('resume_task','','','','edgeapi 方案续接','edgeapi')));
  a.supervisor.clients.set('busy-one',{});a.supervisor.clients.set('busy-two',{});
- await a.respond(msg('p2p','oc_dm','之前的 sub2api 任务归档了，帮我建群继续，新的进展稍后发','om_ARCHIVE'));
+ await a.respond(msg('p2p','oc_dm','之前的 edgeapi 任务归档了，帮我建群继续，新的进展稍后发','om_ARCHIVE'));
  assert(await until(()=>a.dispatches.om_ARCHIVE?.status==='done'));
  assert.equal(a.groups.oc_new.anchor,'13dce94963f3','绑定任务链最新节点');
  assert.equal(a.supervisor.jobs.get('13dce94963f3').chat,'oc_new');
  assert.equal(runs.filter(x=>x.kind!=='lct-chat').length,0,'未给新要求时不启动 worker');
  assert.equal(calls.filter(c=>c.includes('+chat-create')).length,1);
  a.supervisor.clients.clear();
- await a.respond(msg('group','oc_new','新进展：评估 Kimi 的上游配置','om_ARCHIVE_NEXT'));
+ await a.respond(msg('group','oc_new','新进展：评估新上游的配置','om_ARCHIVE_NEXT'));
  assert(await until(()=>runs.some(x=>x.kind!=='lct-chat')));
  assert.equal(starts.at(-1).resume,thread,'沿用旧任务线程');
 });
 
 test('restart replay of an archived resume uses its existing group',async t=>{
  const id='aaaaaaaaaaaa',messageId='om_ARCHIVE_REPLAY';
- const job={id,alias:'scratch',chat:'oc_new',task:'调研 sub2api',threadId:'thread-archive',status:'completed',settledAt:4,started:1,cwd:'/unused'};
+ const job={id,alias:'scratch',chat:'oc_new',task:'调研 edgeapi',threadId:'thread-archive',status:'completed',settledAt:4,started:1,cwd:'/unused'};
  const seed={['jobs/'+id+'/state.json']:job,'groups.json':{oc_new:{anchor:id,alias:'scratch',chat:'oc_new',chain:id,status:'active',kind:'group_task'}},
-  'store.json':{version:1,seen:[messageId],queues:{},outbox:[],dispatches:{[messageId]:{kind:'resume-archived',status:'pending',target:'sub2api',title:'sub2api',task:'评估新的上游方案',chat:'oc_dm',messageId,jobId:id,groupChat:'oc_new',createdAt:1,updatedAt:1}}}};
+  'store.json':{version:1,seen:[messageId],queues:{},outbox:[],dispatches:{[messageId]:{kind:'resume-archived',status:'pending',target:'edgeapi',title:'edgeapi',task:'评估新的上游方案',chat:'oc_dm',messageId,jobId:id,groupChat:'oc_new',createdAt:1,updatedAt:1}}}};
  const {a,calls}=bridge(t,{seed});
  a.supervisor.clients.set('busy-one',{});a.supervisor.clients.set('busy-two',{});
  await a.patch('executeIntent(dispatches.om_ARCHIVE_REPLAY)');
@@ -186,9 +186,9 @@ test('restart replay of an archived resume uses its existing group',async t=>{
 
 test('a settled task can reopen and close its new group before new work arrives',async t=>{
  const id='aaaaaaaaaaaa',settledAt=100;
- const seed={['jobs/'+id+'/state.json']:{id,alias:'scratch',chat:'oc_old',task:'调研 sub2api',threadId:'thread-archive',status:'completed',settledAt,started:1,cwd:'/unused'}};
+ const seed={['jobs/'+id+'/state.json']:{id,alias:'scratch',chat:'oc_old',task:'调研 edgeapi',threadId:'thread-archive',status:'completed',settledAt,started:1,cwd:'/unused'}};
  const {a,calls}=bridge(t,{seed});
- const chat=await a.reopen(id,{allowSettled:true,topic:'sub2api 方案续接'});
+ const chat=await a.reopen(id,{allowSettled:true,topic:'edgeapi 方案续接'});
  assert.equal(chat,'oc_new');
  assert.equal(a.groups.oc_new.anchor,id);
  assert(await until(()=>calls.some(c=>c.includes('+messages-send')&&c.includes('oc_new'))));
@@ -201,11 +201,11 @@ test('a settled task can reopen and close its new group before new work arrives'
 
 test('archived resume refuses ambiguous and missing targets without creating groups',async t=>{
  const job=(id,task)=>({id,alias:'scratch',chat:'oc_old_'+id,task,threadId:'thread-'+id,status:'completed',settledAt:5,started:1,cwd:'/unused'});
- const seed={'jobs/aaaaaaaaaaaa/state.json':job('aaaaaaaaaaaa','调研 sub2api 部署'),
-  'jobs/bbbbbbbbbbbb/state.json':job('bbbbbbbbbbbb','调研 sub2api 迁移')};
+ const seed={'jobs/aaaaaaaaaaaa/state.json':job('aaaaaaaaaaaa','调研 edgeapi 部署'),
+  'jobs/bbbbbbbbbbbb/state.json':job('bbbbbbbbbbbb','调研 edgeapi 迁移')};
  const {a,calls}=bridge(t,{seed});
- mockCodex(t,dmModel(task=>action('resume_task','','','','续接',task.includes('missing')?'missing':'sub2api')));
- await a.respond(msg('p2p','oc_dm','续接 sub2api 归档任务','om_AMBIGUOUS'));
+ mockCodex(t,dmModel(task=>action('resume_task','','','','续接',task.includes('missing')?'missing':'edgeapi')));
+ await a.respond(msg('p2p','oc_dm','续接 edgeapi 归档任务','om_AMBIGUOUS'));
  assert(await until(()=>a.dispatches.om_AMBIGUOUS?.status==='failed'));
  assert(a.outbox.some(x=>x.key==='intent-om_AMBIGUOUS'&&x.text.includes('多个')));
  await a.respond(msg('p2p','oc_dm','续接 missing 归档任务','om_MISSING'));
@@ -307,28 +307,28 @@ test('natural group requests accept varied wording and wait for work in the grou
  }
 });
 
-test('OpenClaw group request routes directly from DM to the registered project',async t=>{
+test('DemoBot group request routes directly from DM to the registered project',async t=>{
  const {a,root,calls}=bridge(t);
- fs.mkdirSync(path.join(root,'workspace/openclaw'),{recursive:true});
- sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace/a'),openclaw:path.join(root,'workspace/openclaw'),scratch:path.join(root,'workspace/scratch')});
- const {runs}=mockCodex(t,dmModel(()=>action('create_group','OpenClaw','给我的 OpenClaw 配置一些技能')));
- const request='小任，帮我起一个群组给我的OpenClaw配置一些技能';
+ fs.mkdirSync(path.join(root,'workspace/demobot'),{recursive:true});
+ sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace/a'),demobot:path.join(root,'workspace/demobot'),scratch:path.join(root,'workspace/scratch')});
+ const {runs}=mockCodex(t,dmModel(()=>action('create_group','DemoBot','给我的 DemoBot 配置一些技能')));
+ const request='哈基峰，帮我起一个群组给我的DemoBot配置一些技能';
  const reply=await a.respond(msg('p2p','oc_dm',request,'om_OPENCLAW_GROUP'));
  assert.match(reply,/处理中，稍后回报/);
  assert(await until(()=>runs.some(x=>x.kind!=='lct-chat')),'独立群 worker 已启动');
- assert.equal(a.supervisor.jobs.get(a.groups.oc_new.anchor).alias,'openclaw');
+ assert.equal(a.supervisor.jobs.get(a.groups.oc_new.anchor).alias,'demobot');
  assert.equal(runs.find(x=>x.kind!=='lct-chat').task,request,'任务正文保留用户原话');
  assert.equal(calls.filter(c=>c.includes('+chat-create')).length,1);
  assert.equal(a.queues.oc_dm.items[0].status,'done');
 });
 
 test('project group phrasing and DM fallback context stay aligned',async t=>{
- for(const [index,request] of ['我想让你帮我建一个OpenClaw项目群','可以帮我为OpenClaw建个群吗'].entries()){
+ for(const [index,request] of ['我想让你帮我建一个DemoBot项目群','可以帮我为DemoBot建个群吗'].entries()){
   await t.test(request,async sub=>{
    const {a,root}=bridge(sub);
-   fs.mkdirSync(path.join(root,'workspace/openclaw'),{recursive:true});
-   sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{openclaw:path.join(root,'workspace/openclaw'),scratch:path.join(root,'workspace/scratch')});
-   const {runs}=mockCodex(sub,dmModel(()=>action('create_group','openclaw')));
+   fs.mkdirSync(path.join(root,'workspace/demobot'),{recursive:true});
+   sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{demobot:path.join(root,'workspace/demobot'),scratch:path.join(root,'workspace/scratch')});
+   const {runs}=mockCodex(sub,dmModel(()=>action('create_group','demobot')));
    assert.match(await a.respond(msg('p2p','oc_dm',request,'om_OPENCLAW_VARIANT_'+index)),/处理中，稍后回报/);
    assert(await until(()=>runs.some(x=>x.kind!=='lct-chat')));
   });
@@ -379,13 +379,13 @@ test('DM dispatch storage failure cannot create an unrecorded group',async t=>{
 test('polite new-task request creates a research group and waits for later deployment requirements',async t=>{
  const {a,root}=bridge(t);
  sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace/a'),scratch:path.join(root,'workspace/scratch')});
- const {runs}=mockCodex(t,dmModel(()=>action('create_group','','调研 sub2api 部署方案；用户稍后补充需求，收到前不部署')));
- const r=await a.respond(msg('p2p','oc_dm','小任，帮我起一个任务，我打算部署一下 sub2api，我想调研方案，稍后我发给你我的需求','om_SUB2API'));
+ const {runs}=mockCodex(t,dmModel(()=>action('create_group','','调研 edgeapi 部署方案；用户稍后补充需求，收到前不部署')));
+ const r=await a.respond(msg('p2p','oc_dm','哈基峰，帮我起一个任务，我打算部署一下 edgeapi，我想调研方案，稍后我发给你我的需求','om_SUB2API'));
  assert.match(r,/处理中，稍后回报/);
  assert(await until(()=>runs.some(x=>x.kind!=='lct-chat')),'任务群 worker 已启动');
  assert.equal(a.dispatches['om_SUB2API'].status,'done');
  assert.equal(a.supervisor.jobs.get(a.groups['oc_new'].anchor).alias,'scratch');
- assert.equal(runs.find(x=>x.kind!=='lct-chat').task,'小任，帮我起一个任务，我打算部署一下 sub2api，我想调研方案，稍后我发给你我的需求');
+ assert.equal(runs.find(x=>x.kind!=='lct-chat').task,'哈基峰，帮我起一个任务，我打算部署一下 edgeapi，我想调研方案，稍后我发给你我的需求');
  assert.equal(a.queues.oc_dm.items[0].status,'done');
 });
 
@@ -406,18 +406,18 @@ test('unknown project does not create a group and a product question stays in DM
  const rejected=await a.respond(msg('p2p','oc_dm','/run missing 调研方案','om_UNKNOWN'));
  assert(/未知或不可用项目/.test(rejected),rejected);
  assert(!calls.some(c=>c.includes('+chat-create')),'未知项目不能先建群');
- const reply=await a.respond(msg('p2p','oc_dm','sub2api 是什么','om_QUESTION'));
+ const reply=await a.respond(msg('p2p','oc_dm','edgeapi 是什么','om_QUESTION'));
  assert(/处理中，稍后回报/.test(reply),reply);
- assert(await until(()=>runs.some(x=>x.task==='sub2api 是什么')),'普通提问留在私聊');
+ assert(await until(()=>runs.some(x=>x.task==='edgeapi 是什么')),'普通提问留在私聊');
  assert(!calls.some(c=>c.includes('+chat-create')),'普通提问不能误建群');
 });
 
-test('mentioning nas as an address does not choose the nas project',async t=>{
+test('mentioning n100 as an address does not choose the n100 project',async t=>{
  const {a,root}=bridge(t);
- fs.mkdirSync(path.join(root,'workspace/nas'));
- sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace/a'),scratch:path.join(root,'workspace/scratch'),nas:path.join(root,'workspace/nas')});
- const {runs}=mockCodex(t,dmModel(()=>action('create_group','','调研 nas 地址和 sub2api，等待后续需求')));
- const r=await a.respond(msg('p2p','oc_dm','小任，帮我起一个任务：调研 nas 地址和 sub2api，稍后发需求','om_ADDRESS'));
+ fs.mkdirSync(path.join(root,'workspace/n100'));
+ sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace/a'),scratch:path.join(root,'workspace/scratch'),n100:path.join(root,'workspace/n100')});
+ const {runs}=mockCodex(t,dmModel(()=>action('create_group','','调研 n100 地址和 edgeapi，等待后续需求')));
+ const r=await a.respond(msg('p2p','oc_dm','哈基峰，帮我起一个任务：调研 n100 地址和 edgeapi，稍后发需求','om_ADDRESS'));
  assert.match(r,/处理中，稍后回报/);
  assert(await until(()=>runs.some(x=>x.kind!=='lct-chat')));
  assert.equal(a.supervisor.jobs.get(a.groups['oc_new'].anchor).alias,'scratch');
@@ -815,7 +815,7 @@ test('DISP-GUARD: register failure is honest (no false success); retry reuses cr
 test('ADOPT: controlled bind creates real job and binds existing group',async t=>{
  const {a,calls}=bridge(t);
  const {runs}=mockCodex(t);
- const r=await a.respond(msg('p2p','oc_dm','/adopt oc_orphan1 a 部署 OpenClaw 与飞书机器人','om_A1'));
+ const r=await a.respond(msg('p2p','oc_dm','/adopt oc_orphan1 a 部署 DemoBot 与飞书机器人','om_A1'));
  assert(/受控绑定执行中/.test(r),r);
  assert(await until(()=>runs.length===1),'真实 worker 启动');
  const g=a.groups['oc_orphan1'];
@@ -834,7 +834,7 @@ test('ADOPT-GUARD: registered group / unknown project / API failure all abort sa
  const r1=await a.respond(msg('p2p','oc_dm','/adopt oc_taken a 任务','om_A3'));
  await sleep(50);
  assert(await until(()=>calls.some(c=>c.some(x=>typeof x==='string'&&/已有任务绑定/.test(x)))),'已注册群拒绝');
- const r2=await a.respond(msg('p2p','oc_dm','/adopt oc_new2 openclaw 部署','om_A4'));
+ const r2=await a.respond(msg('p2p','oc_dm','/adopt oc_new2 demobot 部署','om_A4'));
  assert(await until(()=>calls.some(c=>c.some(x=>typeof x==='string'&&/未知项目/.test(x)))),'未知项目拒绝且不建议未注册 alias');
  assert(!a.groups['oc_new2'],'未做变更');
  // API 失败：中止且零变更

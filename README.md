@@ -4,15 +4,17 @@
 
 <h1 align="center">lark-codex-tasks</h1>
 
-**飞书 ↔ Codex 任务群工作流**——在飞书私聊里一句话派活，机器人自动建任务群、驱动你服务器上的 [Codex CLI](https://github.com/openai/codex) 干活，审批用交互卡片，完成后一键结算归档并解散群。
+**飞书 ↔ Codex 任务群工作流**——把"常开机的服务器 + 飞书"变成你的任务托管中心：工作交接给服务器继续跑，或只带手机也能派活，审批与监督全程在飞书完成。
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Platform](https://img.shields.io/badge/platform-Linux%20%2B%20systemd-lightgrey) ![Runtime](https://img.shields.io/badge/runtime-Node%20%E2%89%A518-green) ![Tests](https://img.shields.io/badge/tests-137%20passed-brightgreen)
 
-> 手机掏出来发一句"帮我建个群管理 OpenWrt 路由器"，剩下的在群里看着它干。
+> 下班了任务没跑完？交接给服务器，地铁上用飞书审批接着干。
+> 手头只有手机？私聊机器人建个群，小事当场就办了。
 
 ## 目录
 
 - [这是什么——60 秒版](#这是什么60-秒版)
+- [两个核心场景](#两个核心场景)
 - [一次真实任务的完整过程](#一次真实任务的完整过程)
 - [核心概念](#核心概念)
 - [工作流详解](#工作流详解)
@@ -33,7 +35,12 @@
 
 ## 这是什么——60 秒版
 
-社区里已有很多"飞书消息 ↔ AI CLI"的转发桥。lark-codex-tasks 解决的是它们之上的**工作流问题**：
+lark-codex-tasks 围绕两个真实需求而生：
+
+1. **Handoff 交接**：笔记本上的任务没做完，人要先走——把工作交接给常开机的服务器，它建群接着干，你在路上用飞书审批监督。
+2. **应急派活**：手头只有手机、不方便开电脑——私聊机器人一句话建群，小任务当场处理。
+
+支撑它们的是同一套**任务群基建**（建群 / 跟进 / 审批 / 归档）：
 
 | 痛点 | 本项目的答案 |
 |---|---|
@@ -43,6 +50,45 @@
 | 干完的任务没沉淀 | `/done` 自动归档 Markdown 进知识库（git commit），可自然语言续接 |
 | 手机上没法操作 | 全部操作都在飞书完成：派活、审批、看日志、结算 |
 | AI 自动化不敢放权 | owner-only + 三档模式 + 自杀防护 + 凭证物理隔离 |
+
+## 两个核心场景
+
+### 场景一：Handoff——下班了，任务交给服务器接着跑
+
+笔记本上的活干了一半，人要离开。把进展交接给常开机的服务器，剩下的路在飞书里走完：
+
+```
+17:50 工位 · 任务跑到一半，要赶地铁
+  └─ 把项目推上服务器（git push / 快照同步），留一段交接说明 HANDOFF.md
+17:55 飞书私聊: "接着 myproject 的 HANDOFF.md 把 XX 做完"
+  └─ 机器人建群「🔵 XX ·a1b2c3」，Codex 读交接说明继续干
+18:20 地铁上 · 群里弹审批卡片 → 点 ✅ → 任务继续
+19:00 到家 · 结果卡已在群里 → /done 归档，进展 pull 回笔记本
+```
+
+- 交接的是**代码 + 上下文说明**；服务器上的会话全新开始，你本机的凭证和原始会话不出本机。
+- 若任务本来就是在服务器上开始的，还可以用 `/resume <项目> <会话ID> <任务>` 直接接回那条 Codex 线程。
+- "怎么交接上来"不限定：git push 到服务器仓库、rsync、或你自己的快照脚本都可以——只要项目在 `projects.json` 里注册了工作区。
+
+### 场景二：应急派活——只有手机，也能把事办了
+
+在外面、在地铁上、在沙发上，突然想起一件事要处理。私聊机器人一句话：
+
+```
+你: "帮我建一个群，目标是连接 OpenWrt 并帮我管理路由器配置"
+机器人: 建群「🔵 OpenWrt 路由器管理 ·a1b2c3」，群内等你说细节
+你（群内，一段富文本）: "先连 192.168.1.1 那台，摸清现状再动配置"
+机器人: "已排队：前面 0 条。轮到自动处理。" → 执行 → 结果卡 → /done 归档解散
+```
+
+### 基建能力（两个场景共用）
+
+建群 → 跟进 → 审批 → 归档，四个环节是全部公共底座：
+
+- **建群**：自然语言或 `/group` `/run` `/resume`，一个任务一个群，互不串味
+- **跟进**：群内发消息即排队续接原线程；崩溃对账恢复；绝不叫用户重发
+- **审批**：交互卡片，owner 校验，无超时，死信重试
+- **归档**：`/done` 写知识库（git commit），旧任务可自然语言续接
 
 ## 一次真实任务的完整过程
 
@@ -368,7 +414,12 @@ journalctl --user -u lark-codex-tasks -f     # 跟踪日志
 
 ## English
 
-**lark-codex-tasks** bridges Feishu/Lark with a local Codex CLI as a *task-group workflow* — one task = one Feishu group = one Codex thread, with a full lifecycle.
+**lark-codex-tasks** turns "an always-on server + Feishu/Lark" into your task hosting center, built around two real-world scenarios:
+
+1. **Handoff** — your laptop task isn't finished but you have to leave: push the work to the server, DM the bot to continue it in a dedicated group, then supervise approvals from the subway.
+2. **Quick tasks from your phone** — no computer at hand: one DM creates a task group and gets small jobs done end-to-end in Feishu.
+
+Both rest on the same task-group infrastructure — one task = one Feishu group = one Codex thread, with a full lifecycle (create → follow-up → approval → archive).
 
 **Workflow.** Dispatch from a DM (natural language or `/group`) → the bot auto-creates a task group `🔵 topic ·id` → Codex works in the matching workspace (`auto`/`safe`/`yolo` modes) → approvals arrive as interactive cards (`✅/🔓/❌/⛔`, owner-verified, **no timeout**) → follow-up messages in the group are durably queued and continue the same Codex thread → `/done` archives the outcome to a git-backed knowledge base and dissolves the group. Every report card carries `codex resume <threadId>` for terminal handoff.
 

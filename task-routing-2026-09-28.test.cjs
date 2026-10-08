@@ -54,7 +54,7 @@ test('OpenWrt is an equipment target, not an unregistered project; a fresh route
  const {runs,starts}=mockCodex(t,dmModel((task,rec)=>rec.kind==='lct-chat'
    ?action('create_group','openwrt','配置路由器','','OpenWrt 路由器配置','',true)
    :action('create_group','','配置路由器','','OpenWrt 路由器配置','',false)));
- const request='哈基峰帮我建一个群，目标是 连接OpenWrt 并帮我管理路由器配置一些东西的';
+ const request='小任帮我建一个群，目标是 连接OpenWrt 并帮我管理路由器配置一些东西的';
  await a.respond(msg('p2p','oc_dm',request,'om_OPENWRT_TARGET'));
  assert(await until(()=>a.dispatches.om_OPENWRT_TARGET?.status==='done'));
  assert.equal(a.supervisor.jobs.get(a.groups.oc_new.anchor).alias,'scratch');
@@ -71,7 +71,7 @@ test('router configuration group works when a product is mistakenly named as the
  mockCodex(t,dmModel((task,rec)=>rec.kind==='lct-chat'
    ?action('create_group','openwrt','配置路由器','','路由器配置','',true)
    :action('create_group','','配置路由器','','路由器配置','',false)));
- await a.respond(msg('p2p','oc_dm','哈基峰帮我建一个群，工作的内容是配置路由器','om_ROUTER_CONFIG'));
+ await a.respond(msg('p2p','oc_dm','小任帮我建一个群，工作的内容是配置路由器','om_ROUTER_CONFIG'));
  assert(await until(()=>a.dispatches.om_ROUTER_CONFIG?.status==='done'));
  assert.equal(a.supervisor.jobs.get(a.groups.oc_new.anchor).alias,'scratch');
 });
@@ -82,7 +82,7 @@ test('an explicit group request overrides a hallucinated DM reply after a statel
  const {starts}=mockCodex(t,dmModel((task,rec)=>rec.kind==='lct-chat'
    ?action('reply','','','此前已提交过两次，请自行检查飞书。')
    :action('create_group','','','','待补充需求','',false)));
- await a.respond(msg('p2p','oc_dm','哈基峰帮我建一个群','om_GROUP_RETRY'));
+ await a.respond(msg('p2p','oc_dm','小任帮我建一个群','om_GROUP_RETRY'));
  assert(await until(()=>a.dispatches.om_GROUP_RETRY?.status==='done'));
  assert.equal(a.supervisor.jobs.get(a.groups.oc_new.anchor).alias,'scratch');
  assert.equal(starts.find(x=>x.instr.includes('独立的私聊动作复核器')).resume,null);
@@ -312,7 +312,7 @@ test('DemoBot group request routes directly from DM to the registered project',a
  fs.mkdirSync(path.join(root,'workspace/demobot'),{recursive:true});
  sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace/a'),demobot:path.join(root,'workspace/demobot'),scratch:path.join(root,'workspace/scratch')});
  const {runs}=mockCodex(t,dmModel(()=>action('create_group','DemoBot','给我的 DemoBot 配置一些技能')));
- const request='哈基峰，帮我起一个群组给我的DemoBot配置一些技能';
+ const request='小任，帮我起一个群组给我的DemoBot配置一些技能';
  const reply=await a.respond(msg('p2p','oc_dm',request,'om_OPENCLAW_GROUP'));
  assert.match(reply,/处理中，稍后回报/);
  assert(await until(()=>runs.some(x=>x.kind!=='lct-chat')),'独立群 worker 已启动');
@@ -380,12 +380,12 @@ test('polite new-task request creates a research group and waits for later deplo
  const {a,root}=bridge(t);
  sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace/a'),scratch:path.join(root,'workspace/scratch')});
  const {runs}=mockCodex(t,dmModel(()=>action('create_group','','调研 edgeapi 部署方案；用户稍后补充需求，收到前不部署')));
- const r=await a.respond(msg('p2p','oc_dm','哈基峰，帮我起一个任务，我打算部署一下 edgeapi，我想调研方案，稍后我发给你我的需求','om_SUB2API'));
+ const r=await a.respond(msg('p2p','oc_dm','小任，帮我起一个任务，我打算部署一下 edgeapi，我想调研方案，稍后我发给你我的需求','om_SUB2API'));
  assert.match(r,/处理中，稍后回报/);
  assert(await until(()=>runs.some(x=>x.kind!=='lct-chat')),'任务群 worker 已启动');
  assert.equal(a.dispatches['om_SUB2API'].status,'done');
  assert.equal(a.supervisor.jobs.get(a.groups['oc_new'].anchor).alias,'scratch');
- assert.equal(runs.find(x=>x.kind!=='lct-chat').task,'哈基峰，帮我起一个任务，我打算部署一下 edgeapi，我想调研方案，稍后我发给你我的需求');
+ assert.equal(runs.find(x=>x.kind!=='lct-chat').task,'小任，帮我起一个任务，我打算部署一下 edgeapi，我想调研方案，稍后我发给你我的需求');
  assert.equal(a.queues.oc_dm.items[0].status,'done');
 });
 
@@ -412,12 +412,12 @@ test('unknown project does not create a group and a product question stays in DM
  assert(!calls.some(c=>c.includes('+chat-create')),'普通提问不能误建群');
 });
 
-test('mentioning n100 as an address does not choose the n100 project',async t=>{
+test('mentioning nas as an address does not choose the nas project',async t=>{
  const {a,root}=bridge(t);
- fs.mkdirSync(path.join(root,'workspace/n100'));
- sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace/a'),scratch:path.join(root,'workspace/scratch'),n100:path.join(root,'workspace/n100')});
- const {runs}=mockCodex(t,dmModel(()=>action('create_group','','调研 n100 地址和 edgeapi，等待后续需求')));
- const r=await a.respond(msg('p2p','oc_dm','哈基峰，帮我起一个任务：调研 n100 地址和 edgeapi，稍后发需求','om_ADDRESS'));
+ fs.mkdirSync(path.join(root,'workspace/nas'));
+ sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace/a'),scratch:path.join(root,'workspace/scratch'),nas:path.join(root,'workspace/nas')});
+ const {runs}=mockCodex(t,dmModel(()=>action('create_group','','调研 nas 地址和 edgeapi，等待后续需求')));
+ const r=await a.respond(msg('p2p','oc_dm','小任，帮我起一个任务：调研 nas 地址和 edgeapi，稍后发需求','om_ADDRESS'));
  assert.match(r,/处理中，稍后回报/);
  assert(await until(()=>runs.some(x=>x.kind!=='lct-chat')));
  assert.equal(a.supervisor.jobs.get(a.groups['oc_new'].anchor).alias,'scratch');

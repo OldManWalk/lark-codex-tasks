@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-09
+
+### Fixed
+
+- **结算容错**：`/done` 时群已解散/机器人已不在群（API 232009/230002）视为既成事实，照常清账（移除失效绑定、落 `settledAt`），不再报"群解散失败"卡死；真实异常仍失败并保留绑定供重试
+- **结算错误消息**：失败时展示真实 API 原因，不再只显示被 80 字符截断的命令行前缀
+- 新增 3 项结算容错验收测试，总数 146
+
 ## [0.2.0] - 2026-10-09
 
 ### Added
@@ -32,6 +40,7 @@
 - **运维工具**：`/status` `/jobs` `/groups` `/logs` `/outbox`（死信核查）/ `/cleanup` `/adopt` `/auditgroups`；交互式 `install.sh init`（systemd user 服务）
 - **测试**：137 项验收测试覆盖会话隔离、队列幂等、重启对账、审批生命周期、死信管理、富文本受理、密钥脱敏、模型故障路径
 
-[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.1
 [0.2.0]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.0
 [0.1.0]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.1.0

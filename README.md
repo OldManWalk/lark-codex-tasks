@@ -6,7 +6,7 @@
 
 **飞书 ↔ Codex 任务群工作流**——把"常开机的服务器 + 飞书"变成你的任务托管中心：工作交接给服务器继续跑，或只带手机也能派活，审批与监督全程在飞书完成。
 
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Platform](https://img.shields.io/badge/platform-Linux%20%2B%20systemd-lightgrey) ![Runtime](https://img.shields.io/badge/runtime-Node%20%E2%89%A518-green) ![Tests](https://img.shields.io/badge/tests-143%20passed-brightgreen)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Platform](https://img.shields.io/badge/platform-Linux%20%2B%20systemd-lightgrey) ![Runtime](https://img.shields.io/badge/runtime-Node%20%E2%89%A518-green) ![Tests](https://img.shields.io/badge/tests-146%20passed-brightgreen)
 
 > 下班了任务没跑完？交接给服务器，地铁上用飞书审批接着干。
 > 手头只有手机？私聊机器人建个群，小事当场就办了。
@@ -339,7 +339,7 @@ cd lark-codex-tasks
 ## 测试
 
 ```bash
-node --test *.test.cjs     # 143 项验收测试
+node --test *.test.cjs     # 146 项验收测试
 ```
 
 | 测试文件 | 覆盖 |
@@ -436,7 +436,7 @@ git clone https://github.com/OldManWalk/lark-codex-tasks.git
 cd lark-codex-tasks && ./install.sh init
 ```
 
-All deployment config lives in one env file (`~/.config/lark-codex-tasks/bridge.env`, generated interactively). The Chinese sections above are the canonical reference; see `docs/feishu-app-setup.md` for the Feishu app walkthrough. 143 acceptance tests: `node --test *.test.cjs`.
+All deployment config lives in one env file (`~/.config/lark-codex-tasks/bridge.env`, generated interactively). The Chinese sections above are the canonical reference; see `docs/feishu-app-setup.md` for the Feishu app walkthrough. 146 acceptance tests: `node --test *.test.cjs`.
 
 MIT © 2026 OldManWalk. Independent implementation inspired by the MIT-licensed projects listed above; not affiliated with ByteDance or OpenAI.
 

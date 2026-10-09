@@ -631,6 +631,13 @@ function archiveToKnowledge(j){
 // 结算期间阻止新指令入队和重复结算，失败后允许重试。
 const settlingChats=new Set();
 // 结算：永远以任务群为对象；归档→通知群→解散→清注册表
+// 群已不存在的判定：232009 已解散 / 230002 bot 已不在群（解散即被移出）。结算容错清账用。
+function isChatGone(e){
+  const code=e&&e.larkError&&e.larkError.code;
+  if(code===232009||code===230002)return true;
+  const m=String((e&&e.larkError&&e.larkError.message)||(e&&e.message)||'');
+  return /already been dissolved|not be out of the chat/i.test(m);
+}
 async function settle(job){
   const chat=job.chat;
   const current=chat&&groups[chat];
@@ -639,8 +646,8 @@ async function settle(job){
   settlingChats.add(chat);
   try{
   if(job.settledAt){
-    await send(chat,'📦 本群尚无新增任务，原任务归档仍保留。本群即将解散。','settle-reopened-'+job.id+'-'+chat);
-    await dissolveGroup(chat);
+    try{await send(chat,'📦 本群尚无新增任务，原任务归档仍保留。本群即将解散。','settle-reopened-'+job.id+'-'+chat);}catch(e){if(!isChatGone(e))throw e;}
+    try{await dissolveGroup(chat);}catch(e){if(!isChatGone(e))throw Error('群解散失败（'+redact(String(e.larkError&&e.larkError.message||e.message||e)).slice(0,120)+'），群可能仍存在；排查后重试 /done。');console.error('[bridge] settle: 群已不存在，按已解散清账:',chat);}
     const binding=groups[chat];delete groups[chat];
     try{saveGroups();}catch(e){groups[chat]=binding;throw Error('群已解散，但绑定注册写入失败；需核查失效注册。');}
     return '✅ 群已解散，原任务 '+job.id.slice(0,6)+' 的归档保留。';
@@ -649,8 +656,9 @@ async function settle(job){
   if(!archived)throw Error('知识库归档失败，任务群已保留；排查后重试 /done。');
   const isGroup=!!groups[chat];
   if(isGroup){
-    await send(chat,'📦 任务已结算归档\n📄 已存知识库: '+archived+'\n本群即将解散。续接请私聊机器人: /reopen '+job.id,'settle-'+job.id);
-    try{await dissolveGroup(chat);}catch(e){throw Error('群解散失败，绑定与任务记录已保留；排查后重试 /done。'+redact(e.message).slice(0,80));}
+    try{await send(chat,'📦 任务已结算归档\n📄 已存知识库: '+archived+'\n本群即将解散。续接请私聊机器人: /reopen '+job.id,'settle-'+job.id);}
+    catch(e){if(!isChatGone(e))throw e;console.error('[bridge] settle: 群已不存在（通知跳过），继续清账:',chat);}
+    try{await dissolveGroup(chat);}catch(e){if(!isChatGone(e))throw Error('群解散失败（'+redact(String(e.larkError&&e.larkError.message||e.message||e)).slice(0,120)+'），绑定与任务记录已保留；排查后重试 /done。');console.error('[bridge] settle: 群已不存在，按已解散清账:',chat);}
     const binding=groups[chat];delete groups[chat];
     try{saveGroups();}catch(e){groups[chat]=binding;throw Error('群已解散，但绑定注册写入失败；需先修复存储并清理失效注册。');}
   }else{

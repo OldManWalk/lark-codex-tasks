@@ -41,6 +41,7 @@ function buildConfig(env=process.env,home=os.homedir()){
     dmAddress:e('LCT_DM_ADDRESS',''),
     dmGreeting:e('LCT_DM_GREETING',brand+' 在线。'),
     dmAck:e('LCT_DM_ACK','收到，处理中，稍后回报。'),
+    reactions:e('LCT_REACTIONS','1')!=='0', // 指令表情三态（等待/处理中/完成）；设 0 关闭
   };
 }
 module.exports={buildConfig,DEFAULT_PERSONA};

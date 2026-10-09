@@ -6,7 +6,7 @@
 
 **飞书 ↔ Codex 任务群工作流**——把"常开机的服务器 + 飞书"变成你的任务托管中心：工作交接给服务器继续跑，或只带手机也能派活，审批与监督全程在飞书完成。
 
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Platform](https://img.shields.io/badge/platform-Linux%20%2B%20systemd-lightgrey) ![Runtime](https://img.shields.io/badge/runtime-Node%20%E2%89%A518-green) ![Tests](https://img.shields.io/badge/tests-137%20passed-brightgreen)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Platform](https://img.shields.io/badge/platform-Linux%20%2B%20systemd-lightgrey) ![Runtime](https://img.shields.io/badge/runtime-Node%20%E2%89%A518-green) ![Tests](https://img.shields.io/badge/tests-143%20passed-brightgreen)
 
 > 下班了任务没跑完？交接给服务器，地铁上用飞书审批接着干。
 > 手头只有手机？私聊机器人建个群，小事当场就办了。
@@ -85,7 +85,7 @@ lark-codex-tasks 围绕两个真实需求而生：
 建群 → 跟进 → 审批 → 归档，四个环节是全部公共底座：
 
 - **建群**：自然语言或 `/group` `/run` `/resume`，一个任务一个群，互不串味
-- **跟进**：群内发消息即排队续接原线程；崩溃对账恢复；绝不叫用户重发
+- **跟进**：群内发消息即排队续接原线程；崩溃对账恢复；绝不叫用户重发。指令消息上的表情实时反映进度：`⏳ OneSecond`（已受理）→ `Typing`（处理中）→ `DONE` / `CrossMark`（完成/失败）
 - **审批**：交互卡片，owner 校验，无超时，死信重试
 - **归档**：`/done` 写知识库（git commit），旧任务可自然语言续接
 
@@ -285,6 +285,7 @@ cd lark-codex-tasks
 | `LCT_CODEX_PKG` | | `~/.local/lib/node_modules/@openai/codex` | 沙箱内 codex 包路径 |
 | `LCT_OB_MAX_ATTEMPTS` | | `5` | 出站消息投递重试次数 |
 | `LCT_OB_BACKOFF_MS` | | `2000` | 出站投递退避基数（毫秒） |
+| `LCT_REACTIONS` | | `1` | 指令表情三态（等待/处理中/完成）；`0` 关闭 |
 
 项目工作区注册表：`~/.config/lark-codex-tasks/projects.json`（示例见 [examples/projects.json.example](examples/projects.json.example)）。`scratch` 是内置通用工作区；其余别名指向各项目内容目录（代码项目应在 git 仓库内以启用 worktree 隔离）。
 
@@ -338,7 +339,7 @@ cd lark-codex-tasks
 ## 测试
 
 ```bash
-node --test *.test.cjs     # 137 项验收测试
+node --test *.test.cjs     # 143 项验收测试
 ```
 
 | 测试文件 | 覆盖 |
@@ -388,7 +389,6 @@ journalctl --user -u lark-codex-tasks -f     # 跟踪日志
 
 ## 路线图
 
-- [ ] 消息表情三态进度（⏳等待 → 处理中 → 完成，见 [CHANGELOG](CHANGELOG.md) 进展）
 - [ ] npm 发布（`npm i -g @oldmanwalk/lark-codex-tasks`）
 - [ ] 任务定时调度（cron 式派活）
 - [ ] 群内图片/文件直接进入任务上下文
@@ -436,7 +436,7 @@ git clone https://github.com/OldManWalk/lark-codex-tasks.git
 cd lark-codex-tasks && ./install.sh init
 ```
 
-All deployment config lives in one env file (`~/.config/lark-codex-tasks/bridge.env`, generated interactively). The Chinese sections above are the canonical reference; see `docs/feishu-app-setup.md` for the Feishu app walkthrough. 137 acceptance tests: `node --test *.test.cjs`.
+All deployment config lives in one env file (`~/.config/lark-codex-tasks/bridge.env`, generated interactively). The Chinese sections above are the canonical reference; see `docs/feishu-app-setup.md` for the Feishu app walkthrough. 143 acceptance tests: `node --test *.test.cjs`.
 
 MIT © 2026 OldManWalk. Independent implementation inspired by the MIT-licensed projects listed above; not affiliated with ByteDance or OpenAI.
 

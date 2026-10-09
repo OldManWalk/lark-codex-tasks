@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-09
+
+### Added
+
+- **指令表情三态**：用户指令消息上的表情实时反映进度——`OneSecond`（已受理/排队）→ `Typing`（处理中）→ `DONE`（完成）/ `CrossMark`（失败）。切换贴新删旧、同一消息串行不乱序；`LCT_REACTIONS=0` 可整体关闭。纯装饰性设计：表情 API 失败仅记日志，不进死信队列、绝不影响任务执行
+- 新增 6 项表情链路验收测试（三态顺序、失败态、退回重等、开关关闭、API 故障容忍、私聊路径），总数 143
+
+### Fixed
+
+- **任务群指令升级 `group-task-v2`**：明确禁止工作群 Codex 自行调用飞书 CLI / 开放平台 API 建群、发消息、改群信息——修复任务文本含"建一个群讨论 X"时工作单元把桥接层动作当成任务内容、重复建群的问题（建群/通知/归档/解散的唯一执行者是宿主 bridge）
+- **名额退回竞态**：任务因执行名额满退回等待时，提前 `pump()` 会在 `inFlight` 标记删除前对账，把重新启动的执行项误判为"结果未知"并暂停队列；改为由 `finally` 统一调度
+
 ## [0.1.0] - 2026-10-09
 
 首次公开发布。
@@ -20,5 +32,6 @@
 - **运维工具**：`/status` `/jobs` `/groups` `/logs` `/outbox`（死信核查）/ `/cleanup` `/adopt` `/auditgroups`；交互式 `install.sh init`（systemd user 服务）
 - **测试**：137 项验收测试覆盖会话隔离、队列幂等、重启对账、审批生命周期、死信管理、富文本受理、密钥脱敏、模型故障路径
 
-[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.0
 [0.1.0]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.1.0

@@ -15,6 +15,7 @@ const MODES = {
 function defaultTaskInstructions(env){const c=buildConfig(env||process.env);return [
  '你是 '+c.brand+' 任务群的 Codex 执行单元，在任务群绑定的任务链内工作。',
  c.safety,
+'工作场所纪律：禁止自行调用飞书 CLI（lark-cli）或飞书开放平台 API 建群、解散群、修改群信息、发消息；建群、通知、归档、解散由宿主 bridge 完成。任务文本中"建一个群讨论 X"类表述意为在当前本群讨论推进 X。',
 ].join('\n');}
 
 function sanitizeEnv(env){const out={...env};for(const k of Object.keys(out))if(/^LARK_|^FEISHU_/i.test(k))delete out[k];return out;}

@@ -116,7 +116,7 @@ test('ISO5: bound groups continue own chain with safety-only instructions; threa
  assert(await until(()=>starts.length===2),'C 群任务应自动启动');
  assert.equal(starts[1].resume,'thread-C','C 群恢复自己的线程');
  const gB=a.groups['oc_gB'];
- assert(gB.kind==='group_task'&&gB.thread==='thread-B'&&gB.chain==='aaaa11110000'&&gB.instr==='group-task-v1','群 session 元数据完整');
+ assert(gB.kind==='group_task'&&gB.thread==='thread-B'&&gB.chain==='aaaa11110000'&&gB.instr==='group-task-v2','群 session 元数据完整');
  assert(!Object.keys(a.sessions).some(k=>k.includes('oc_g')),'群聊不得写入私聊注册表');
  assert(await until(()=>[...a.supervisor.jobs.values()].filter(j=>j.continuedFrom).length===2),'两群各产生接续任务');
  const newJobs=[...a.supervisor.jobs.values()].filter(j=>j.continuedFrom);
@@ -205,7 +205,7 @@ test('ISO11: reopen rebuilds binding metadata; polluted job blocked',async t=>{
  a.supervisor.jobs.set('aaaa11110000',{id:'aaaa11110000',alias:'a',chat:'oc_old',threadId:'thread-R',status:'completed',cwd:'/tmp',mode:'auto',started:1});
  const chat=await a.reopen('aaaa11110000');
  const g=a.groups[chat];
- assert(g&&g.anchor==='aaaa11110000'&&g.kind==='group_task'&&g.thread==='thread-R'&&g.chain==='aaaa11110000'&&g.instr==='group-task-v1','reopen 元数据完整');
+ assert(g&&g.anchor==='aaaa11110000'&&g.kind==='group_task'&&g.thread==='thread-R'&&g.chain==='aaaa11110000'&&g.instr==='group-task-v2','reopen 元数据完整');
  assert.equal(a.supervisor.jobs.get('aaaa11110000').chat,chat,'job.chat 指向新群');
  a.supervisor.jobs.set('bbbb22221111',{id:'bbbb22221111',alias:'a',chat:'oc_x',threadId:'01a0e0a2-bc90-7311-9046-e0b752f2b91a',status:'completed',cwd:'/tmp',mode:'auto',started:2});
  a.patch(`sessions['dm:oc_dm']={kind:'dm',chat:'oc_dm',thread:'01a0e0a2-bc90-7311-9046-e0b752f2b91a',instr:'dm-persona-v1',updated:Date.now()};`);

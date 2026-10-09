@@ -4,7 +4,8 @@
 
 <h1 align="center">lark-codex-tasks</h1>
 
-**飞书 ↔ Codex 任务群工作流**——把"常开机的服务器 + 飞书"变成你的任务托管中心：工作交接给服务器继续跑，或只带手机也能派活，审批与监督全程在飞书完成。
+**飞书 ↔ Codex 任务群工作流**——[把"常开机的服务器 + 飞书"变成你的任务托管中心：工作交接给服务器继续跑，或只带手机也能派活，审批与监督全程在飞书完成。](https://my.feishu.cn/docx/XPZidpAeXo0vnHxQSQ1cSBqInmf?from=from_copylink)
+
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Platform](https://img.shields.io/badge/platform-Linux%20%2B%20systemd-lightgrey) ![Runtime](https://img.shields.io/badge/runtime-Node%20%E2%89%A518-green) ![Tests](https://img.shields.io/badge/tests-137%20passed-brightgreen)
 

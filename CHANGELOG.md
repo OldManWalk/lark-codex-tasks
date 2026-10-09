@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-09
+
+### Added
+
+- **群名状态灯**：任务群名跟随队列状态——队列暂停（任务失败/手动 `/qpause`/锁定）时自动改为 🟡 前缀，`/qresume` 恢复后改回 🔵；仅在状态翻转时改名，不重复打扰（148 项测试全绿）
+
 ## [0.2.2] - 2026-10-09
 
 ### Fixed
@@ -46,7 +52,8 @@
 - **运维工具**：`/status` `/jobs` `/groups` `/logs` `/outbox`（死信核查）/ `/cleanup` `/adopt` `/auditgroups`；交互式 `install.sh init`（systemd user 服务）
 - **测试**：137 项验收测试覆盖会话隔离、队列幂等、重启对账、审批生命周期、死信管理、富文本受理、密钥脱敏、模型故障路径
 
-[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.3
 [0.2.2]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.2
 [0.2.1]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.1
 [0.2.0]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.0

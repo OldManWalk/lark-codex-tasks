@@ -244,6 +244,16 @@ function stripMention(t){return t.replace(/<at[^>]*>[^<]*<\/at>/gi,'').replace(/
 function shortDesc(task,n){return Array.from(String(task).replace(/\s+/g,' ').trim()).slice(0,n).join('');}
 function groupTopic(topic,fallback){return shortDesc(redact(String(topic||fallback||'任务讨论').replace(/[\r\n\t<>]/g,' ')),24)||'任务讨论';}
 function groupName(emoji,alias,topic,id){return emoji+' '+groupTopic(topic,alias)+(id?' ·'+id.slice(0,6):'');}
+// 群名状态灯：队列暂停 🟡 / 正常 🔵。与注册表标题对账，仅变化时改名（renameGroup 内部已容错，不阻塞流程）。
+function syncGroupName(chat){
+  const g=groups[chat];if(!g||!g.title||!g.anchor)return;
+  const q=queues[chat];
+  const want=groupName(q&&q.paused?'🟡':'🔵',g.alias,g.topic,g.anchor);
+  if(want===g.title)return;
+  const prev=g.title;g.title=want;
+  try{saveGroups();}catch(e){g.title=prev;console.error('[bridge] 群名状态持久化失败:',e.message);return;}
+  renameGroup(chat,want).catch(()=>{});
+}
 const GROUP_READY_TASK='这是新建的独立任务群。请只确认会话就绪，等待用户在群内提出具体工作；本轮不要修改文件或执行部署。';
 
 // ─────────────────── 每会话持久队列（TASK_QUEUE/TASK_ACK 契约） ───────────────────
@@ -315,11 +325,13 @@ async function pump(){
           else if(j){ // failed/cancelled/interrupted：工作区安全性未知，持久阻断并解释，保留队列
             txStore(()=>{act.runJobId=j.id;act.status='failed';act.error='任务终态: '+j.status;act.finishedAt=Date.now();q.paused=true;q.pauseReason='prev-'+j.status+':'+j.id;
               if(!dmChats.has(chat))outboxPush(chat,'⚠️ 上一条指令的任务终态为 '+j.status+'，队列已暂停。确认工作区后 /qresume 继续（无需重发），或 /qclear 清空等待项。','qpause-'+act.messageId);});
+            syncGroupName(chat);
             setReact(act,'fail');
             drainChat(chat).catch(()=>{});continue;
           }else{ // claim 后崩溃窗口：runJobId 未登记，结果未知，绝不盲目重放
             txStore(()=>{act.status='failed';act.error='服务重启，执行结果未知，未重放';act.finishedAt=Date.now();q.paused=true;q.pauseReason='unknown-after-restart';
               if(!dmChats.has(chat))outboxPush(chat,'⚠️ 服务重启，一条指令的执行结果未知（未自动重放）。队列已暂停，/qresume 恢复。','qpause-'+act.messageId);});
+            syncGroupName(chat);
             setReact(act,'fail');
             drainChat(chat).catch(()=>{});continue;
           }
@@ -330,7 +342,7 @@ async function pump(){
       if(!next)continue;
       if(next.kind==='task'){
         const gc=groupContext(chat);
-        if(!gc){try{txStore(()=>{next.status='failed';next.error='群绑定失效';next.finishedAt=Date.now();q.paused=true;q.pauseReason='bind-lost';if(!dmChats.has(chat))outboxPush(chat,'⚠️ 群绑定已失效，排队指令未能启动，队列暂停。私聊 /reopen 重建后 /qresume。','qbind-'+next.messageId);});setReact(next,'fail');drainChat(chat).catch(()=>{});}catch(e){console.error('[bridge] pump bind-lost persist failed:',e.message);}continue;}
+        if(!gc){try{txStore(()=>{next.status='failed';next.error='群绑定失效';next.finishedAt=Date.now();q.paused=true;q.pauseReason='bind-lost';if(!dmChats.has(chat))outboxPush(chat,'⚠️ 群绑定已失效，排队指令未能启动，队列暂停。私聊 /reopen 重建后 /qresume。','qbind-'+next.messageId);});syncGroupName(chat);setReact(next,'fail');drainChat(chat).catch(()=>{});}catch(e){console.error('[bridge] pump bind-lost persist failed:',e.message);}continue;}
         const anchor=supervisor.jobs.get(gc.g.anchor);
         if(anchor&&['running','cancelling'].includes(anchor.status))continue; // 等终态唤醒
         if(supervisor.clients.size+dispatchReservations.size>=2)continue; // 等全局名额
@@ -363,6 +375,7 @@ async function runTaskItem(chat,item,gc){
     if(/已有 2 个任务|已有运行中的任务/.test(item.error)){try{txStore(()=>{item.status='queued';item.startedAt=null;item.error=null;});setReact(item,'wait');}catch(e){console.error('[bridge] requeue persist failed:',e.message);}return;} // 名额/互斥竞态：退回等待；由 finally 统一 pump（此处先 pump 会在 inFlight 删除前对账，把重启项误判为结果未知）
     const fatal=/线程|会话冲突|工作目录|绑定|未知任务/.test(item.error); // 线程失效/绑定异常：阻断；其余未启动错误：继续后续
     try{txStore(()=>{item.status='failed';item.finishedAt=Date.now();if(fatal){const q=qOf(chat);q.paused=true;q.pauseReason='fatal:'+item.error.slice(0,60);}if(!dmChats.has(chat))outboxPush(chat,'❌ 排队指令未能启动: '+redact(item.error)+(fatal?'\n队列已暂停，/qresume 恢复。':''),'qfail-'+item.messageId);});drainChat(chat).catch(()=>{});
+    syncGroupName(chat);
     setReact(item,'fail');
     }catch(e){console.error('[bridge] fail-state persist failed:',e.message);}
   }finally{inFlight.delete(flightKey(chat,item));pump();}
@@ -975,6 +988,7 @@ async function runChatTurn(text,chat){
 function cancelDmTurn(chat){
   const q=qOf(chat);
   try{txStore(()=>{q.paused=true;q.pauseReason=q.pauseReason||'cancel-lock';});}catch(e){console.error('[bridge] cancel-lock persist failed:',e.message);return '⚠️ 队列锁定未保存，取消未执行。请检查存储后重试。';}
+  syncGroupName(chat);
   const act=q.items.find(i=>i.status==='active'&&i.kind==='dm');
   const c=chatClientByChat.get(chat);
   if(!act&&!c)return '当前没有正在执行的对话。会话队列已锁定，/qresume 恢复。';
@@ -1004,8 +1018,8 @@ async function respond(e){
       case '/jobs':return supervisor.list();
       case '/groups':{const lines=Object.entries(groups).map(([,g])=>'🔵 '+g.alias+' · '+g.anchor.slice(0,6)+' · '+g.title);return lines.join('\n')||'暂无任务群。';}
       case '/queue':{const q=queues[chat];if(!q)return '本会话队列为空。';const lines=q.items.filter(i=>['queued','active'].includes(i.status)).map(i=>'#'+i.seq+' '+(i.status==='active'?'执行中':'等待中')+' · '+shortDesc(i.text,30));return '队列'+(q.paused?'（已暂停: '+(q.pauseReason||'-')+'）':'')+'：\n'+(lines.join('\n')||'（无待处理项）');}
-      case '/qpause':{try{txStore(()=>{const q=qOf(chat);q.paused=true;q.pauseReason=q.pauseReason||'manual';});}catch(ex){return '⚠️ 存储写入失败（'+String(ex.message).slice(0,60)+'），暂停未生效。';}return '队列已暂停。已受理的指令保留，/qresume 恢复。';}
-      case '/qresume':{try{txStore(()=>{const q=qOf(chat);q.paused=false;q.pauseReason=null;});}catch(ex){return '⚠️ 存储写入失败（'+String(ex.message).slice(0,60)+'），恢复未生效。';}pump();return '队列已恢复，自动继续处理。';}
+      case '/qpause':{try{txStore(()=>{const q=qOf(chat);q.paused=true;q.pauseReason=q.pauseReason||'manual';});}catch(ex){return '⚠️ 存储写入失败（'+String(ex.message).slice(0,60)+'），暂停未生效。';}syncGroupName(chat);return '队列已暂停。已受理的指令保留，/qresume 恢复。';}
+      case '/qresume':{try{txStore(()=>{const q=qOf(chat);q.paused=false;q.pauseReason=null;});}catch(ex){return '⚠️ 存储写入失败（'+String(ex.message).slice(0,60)+'），恢复未生效。';}syncGroupName(chat);pump();return '队列已恢复，自动继续处理。';}
       case '/qclear':{const q=queues[chat];if(!q)return '本会话队列为空。';let n=0;try{txStore(()=>{n=q.items.filter(i=>i.status==='queued').length;q.items=q.items.filter(i=>i.status!=='queued');});}catch(ex){return '⚠️ 存储写入失败（'+String(ex.message).slice(0,60)+'），清空未生效。';}return '已丢弃 '+n+' 条等待中的指令（执行中的不受影响）。';}
       case '/qdrop':{const q=queues[chat];if(!q)throw new Error('本会话队列为空。');const i=q.items.findIndex(x=>x.seq===p.seq&&x.status==='queued');if(i<0)throw new Error('没有找到等待中的 #'+p.seq+'（/queue 查看）。');try{txStore(()=>{q.items.splice(i,1);});}catch(ex){return '⚠️ 存储写入失败（'+String(ex.message).slice(0,60)+'），丢弃未生效。';}return '已丢弃排队指令 #'+p.seq+'。';}
       case '/status':{const appr=[...pendingByChat.values()].reduce((n,a)=>n+a.length,0);const ob=outboxStats();return CFG.brand+' '+os.hostname()+'\n运行: '+supervisor.clients.size+'/2\n待审批: '+appr+'\n待发消息: '+ob.pending+(ob.failed?'（投递失败 '+ob.failed+'）':'')+'\n\n'+supervisor.list();}

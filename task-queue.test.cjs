@@ -233,3 +233,20 @@ test('Q10: full queue refuses with explicit not-saved notice',async t=>{
  assert.equal(a.queues['oc_gQ'].items.length,50,'没有新增');
  assert.equal(runs.length,0,'不执行');
 });
+
+// ── 群名状态灯：失败暂停 → 🟡；/qresume → 🔵；无变化不重复改名 ──
+test('Q11: group name follows queue status (paused=yellow, resumed=blue)',async t=>{
+ const {a,calls}=bridge(t);let fail=true;
+ mockCodex(t,function(){return fail?Promise.reject(new Error('boom-synthesis')):Promise.resolve({message:'ok'});});
+ bindGroup(a,'oc_gQ','aaaa11110000','thread-T');
+ a.groups['oc_gQ'].title='🔵 a ·aaaa11'; // 建群时会写入标题（真实路径在 createGroup 处）
+ await a.respond(msg('group','oc_gQ','会失败的任务','om_A'));
+ assert(await until(()=>a.queues['oc_gQ'].paused===true),'失败后队列暂停');
+ const renames=()=>calls.filter(c=>c[1]==='+chat-update').map(c=>c.find(x=>typeof x==='string'&&/^[🔵🟡]/.test(x)));
+ assert(await until(()=>renames().some(n=>n.startsWith('🟡'))),'暂停应改 🟡 群名');
+ assert.equal(a.groups['oc_gQ'].title.startsWith('🟡'),true,'注册表标题同步');
+ fail=false;
+ await a.respond(msg('group','oc_gQ','/qresume','om_R'));
+ assert(await until(()=>renames().some(n=>n.startsWith('🔵'))),'恢复应改回 🔵');
+ assert.equal(renames().length,2,'只在状态翻转时改名，不重复');
+});

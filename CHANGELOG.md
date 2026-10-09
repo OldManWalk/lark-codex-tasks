@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-09
+
+### Fixed
+
+- **裸 API 调用显式 bot 身份**：`dissolveGroup` / `deleteMessage` 两个裸 `api DELETE` 补上 `--as bot`——修复宿主机器做过 `lark-cli auth login`（user 身份）后 lark-cli 默认身份漂移、导致 `/done` 解散群必然 `missing_scope` 失败的问题；新增静态回归测试：所有 `lark()` 调用必须显式携带身份（147 项全绿）
+
 ## [0.2.1] - 2026-10-09
 
 ### Fixed
@@ -40,7 +46,8 @@
 - **运维工具**：`/status` `/jobs` `/groups` `/logs` `/outbox`（死信核查）/ `/cleanup` `/adopt` `/auditgroups`；交互式 `install.sh init`（systemd user 服务）
 - **测试**：137 项验收测试覆盖会话隔离、队列幂等、重启对账、审批生命周期、死信管理、富文本受理、密钥脱敏、模型故障路径
 
-[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.2
 [0.2.1]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.1
 [0.2.0]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.0
 [0.1.0]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.1.0

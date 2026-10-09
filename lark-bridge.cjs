@@ -210,9 +210,9 @@ async function sendReportCard(chat,job,key,fallback){
     await send(chat,reportExcerpt(fallback),key,'markdown');
   }
 }
-async function deleteMessage(messageId){if(!messageId)return;try{await lark(['api','DELETE','/open-apis/im/v1/messages/'+messageId],15000);}catch(e){console.error('[bridge] msg delete failed:',e.message.slice(0,100));}}
+async function deleteMessage(messageId){if(!messageId)return;try{await lark(['api','DELETE','/open-apis/im/v1/messages/'+messageId,'--as','bot'],15000);}catch(e){console.error('[bridge] msg delete failed:',e.message.slice(0,100));}}
 async function renameGroup(chat,name){try{await lark(['im','+chat-update','--as','bot','--chat-id',chat,'--name',name],20000);}catch(e){console.error('[bridge] rename failed:',e.message.slice(0,80));}}
-async function dissolveGroup(chat){await lark(['api','DELETE','/open-apis/im/v1/chats/'+chat],20000);}
+async function dissolveGroup(chat){await lark(['api','DELETE','/open-apis/im/v1/chats/'+chat,'--as','bot'],20000);}
 function extractPostText(c){ // 富文本 post：text/a 段拼接，@提及剔除，图片/媒体段忽略，段落间换行
  const body=Array.isArray(c.content)?c:['zh_cn','en_us','ja_jp'].map(k=>c[k]).find(v=>v&&typeof v==='object'&&Array.isArray(v.content));
  if(!body)return '';

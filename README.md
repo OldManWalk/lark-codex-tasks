@@ -388,10 +388,13 @@ journalctl --user -u lark-codex-tasks -f     # 跟踪日志
 
 ## 路线图
 
+- [ ] 消息表情三态进度（⏳等待 → 处理中 → 完成，见 [CHANGELOG](CHANGELOG.md) 进展）
 - [ ] npm 发布（`npm i -g @oldmanwalk/lark-codex-tasks`）
 - [ ] 任务定时调度（cron 式派活）
 - [ ] 群内图片/文件直接进入任务上下文
 - [ ] 更多模型供应方的故障分类适配
+
+版本历史与每次更新的具体内容见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 与同类项目的关系
 

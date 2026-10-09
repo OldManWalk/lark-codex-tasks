@@ -273,12 +273,14 @@ cd lark-codex-tasks
 | `LCT_CONFIG_DIR` | | `~/.config/lark-codex-tasks` | 配置目录 |
 | `LCT_WORKSPACE_ROOT` | | `~/workspace` | 工作区根目录 |
 | `LCT_SCRATCH_DIR` | | `<root>/scratch` | 通用工作区 |
-| `LCT_ARCHIVE_DIR` | | `<root>/knowledge/content/任务归档` | 任务归档目录 |
+| `LCT_KNOWLEDGE_DIR` | | `<root>/knowledge/content` | 知识库根目录（/done 归档与知识写入的基准） |
+| `LCT_ARCHIVE_DIR` | | `<knowledge>/任务归档` | 任务归档目录 |
 | `LCT_PERSONA_FILE` | | `<config>/persona.md` | 私聊人格文件（见 examples/persona.example.md） |
 | `LCT_DM_ADDRESS` | | 空 | 私聊对你的称呼（如：老板） |
 | `LCT_DM_GREETING` | | `<brand> 在线。` | 私聊 /ping 回执 |
 | `LCT_DM_ACK` | | `收到，处理中，稍后回报。` | 私聊受理回执 |
 | `LCT_THREAD_PREFIX` | | `lct` | Codex 线程名前缀 |
+| `LCT_BIN_DIR` | | `~/.local/bin` | `codex` / `lark-cli` 可执行文件所在目录 |
 | `LCT_NODE_BIN` | | `~/.local/bin/node` | 沙箱内 node 路径 |
 | `LCT_CODEX_PKG` | | `~/.local/lib/node_modules/@openai/codex` | 沙箱内 codex 包路径 |
 | `LCT_OB_MAX_ATTEMPTS` | | `5` | 出站消息投递重试次数 |
@@ -435,4 +437,4 @@ All deployment config lives in one env file (`~/.config/lark-codex-tasks/bridge.
 
 MIT © 2026 OldManWalk. Independent implementation inspired by the MIT-licensed projects listed above; not affiliated with ByteDance or OpenAI.
 
-[lark-cli]: https://github.com/larksuite/lark-cli
+[lark-cli]: https://github.com/larksuite/cli

@@ -24,7 +24,17 @@ ask(){ # ask <var> <prompt> [default]
   if [ -n "$_d" ]; then printf '%s [%s]: ' "$_p" "$_d" >&2; else printf '%s: ' "$_p" >&2; fi
   IFS= read -r _a || true
   if [ -z "$_a" ]; then _a=$_d; fi
-  eval "$_v=\$_a"
+  eval "$_v=\"\$_a\""
+}
+
+install_runtime(){
+  mkdir -p "$PREFIX"
+  if [ "$PKG_DIR" != "$PREFIX" ]; then
+    cp "$PKG_DIR"/*.cjs "$PREFIX"/
+    cp "$PKG_DIR"/codex-dm-sandbox.sh "$PREFIX"/
+  fi
+  chmod 700 "$PREFIX"/codex-dm-sandbox.sh
+  chmod 600 "$PREFIX"/*.cjs
 }
 
 cmd_init(){
@@ -86,11 +96,7 @@ cmd_init(){
     echo "ℹ 私聊沙箱需要自己的 codex 登录态：CODEX_HOME=$STATE_DIR/dm-codex-home codex login"
   fi
 
-  mkdir -p "$PREFIX"
-  cp "$PKG_DIR"/*.cjs "$PREFIX"/
-  cp "$PKG_DIR"/codex-dm-sandbox.sh "$PREFIX"/
-  chmod 700 "$PREFIX"/codex-dm-sandbox.sh
-  chmod 600 "$PREFIX"/*.cjs
+  install_runtime
   ok "运行文件已安装到 $PREFIX"
 
   cat > "$UNIT_DIR/$SERVICE.service" <<EOF
@@ -127,10 +133,7 @@ cmd_logs(){ journalctl --user -u "$SERVICE" -f; }
 
 cmd_update(){
   [ -d "$PREFIX" ] || die "尚未安装，先运行 ./install.sh init"
-  cp "$PKG_DIR"/*.cjs "$PREFIX"/
-  cp "$PKG_DIR"/codex-dm-sandbox.sh "$PREFIX"/
-  chmod 700 "$PREFIX"/codex-dm-sandbox.sh
-  chmod 600 "$PREFIX"/*.cjs
+  install_runtime
   systemctl --user restart "$SERVICE"
   ok "已更新并重启（运行中的任务会标记 interrupted，建议空闲时操作）"
 }

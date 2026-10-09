@@ -55,4 +55,4 @@ journalctl --user -u lark-codex-tasks -f
 
 日志里应看到 `im.message.receive_v1` 与 `card.action.trigger` 两路 `ready`。然后在飞书里私聊机器人发 `/ping`，收到回执即全部打通。
 
-[lark-cli]: https://github.com/larksuite/lark-cli
+[lark-cli]: https://github.com/larksuite/cli

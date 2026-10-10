@@ -102,10 +102,13 @@ cmd_init(){
   cat > "$UNIT_DIR/$SERVICE.service" <<EOF
 [Unit]
 Description=lark-codex-tasks Feishu Codex bridge
-After=network-online.target
+After=network-online.target nss-lookup.target
+Wants=network-online.target
 
 [Service]
 Type=simple
+# 开机早期 DNS 未就绪时取 token 会失败；先等 DNS 可用（最多 60s）
+ExecStartPre=/bin/sh -c 'i=0; while [ \$i -lt 30 ]; do getent hosts open.feishu.cn >/dev/null 2>&1 && exit 0; i=\$((i+1)); sleep 2; done; exit 1'
 EnvironmentFile=$ENV_FILE
 Environment=PATH=$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=$NODE_BIN $PREFIX/lark-bridge.cjs

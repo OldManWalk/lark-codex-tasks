@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-11
+
+### Added
+
+- **图片/文件消息受理**：群内或私聊发送的图片、文件自动下载到 `scratch/inbox/`（按消息 ID 命名，文件名消毒），本地路径注入任务正文——worker 直接读取附件处理，私聊沙箱经 scratch 绑定同样可读；下载失败明确告知重发，不入队、不静默丢弃；重复投递幂等。新增 4 项验收测试（152 项全绿）
+
 ## [0.2.4] - 2026-10-11
 
 ### Fixed
@@ -58,7 +64,8 @@
 - **运维工具**：`/status` `/jobs` `/groups` `/logs` `/outbox`（死信核查）/ `/cleanup` `/adopt` `/auditgroups`；交互式 `install.sh init`（systemd user 服务）
 - **测试**：137 项验收测试覆盖会话隔离、队列幂等、重启对账、审批生命周期、死信管理、富文本受理、密钥脱敏、模型故障路径
 
-[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.3.0
 [0.2.4]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.4
 [0.2.3]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.3
 [0.2.2]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.2

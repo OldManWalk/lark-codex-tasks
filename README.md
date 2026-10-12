@@ -28,8 +28,7 @@
 - [运维手册](#运维手册)
 - [故障排查 FAQ](#故障排查-faq)
 - [路线图](#路线图)
-- [与同类项目的关系](#与同类项目的关系)
-- [致谢](#致谢)
+- [项目定位](#项目定位)
 - [商标与免责声明](#商标与免责声明)
 - [English](#english)
 
@@ -400,19 +399,11 @@ journalctl --user -u lark-codex-tasks -f     # 跟踪日志
 
 版本历史与每次更新的具体内容见 [CHANGELOG.md](CHANGELOG.md)。
 
-## 与同类项目的关系
+## 项目定位
 
-[zarazhangrui/lark-coding-agent-bridge](https://github.com/zarazhangrui/lark-coding-agent-bridge)、[xile611/lark-codex-bridge](https://github.com/xile611/lark-codex-bridge) 等项目解决"飞书消息 ↔ 本地 coding CLI"的桥接；**lark-codex-tasks 是其上的工作流层扩展**：任务群生命周期、排队续接、审批卡片、归档知识库、多工作区 worktree 隔离。只需要消息转发桥用它们就好；想要"一个任务一个群、干完归档散伙"的完整工作流，那是本项目的主场。
+本项目通过 [lark-cli] 接收飞书事件和调用 IM API，通过 `codex app-server` 驱动任务执行。任务群生命周期、持久队列、排队续接、审批卡片、归档知识库和 Git worktree 管理由本项目的 bridge 与 Supervisor 实现。
 
-## 致谢
-
-本项目为独立实现，设计与演进过程中受到以下社区项目的启发（均为 MIT）：
-
-- [zarazhangrui/lark-coding-agent-bridge](https://github.com/zarazhangrui/lark-coding-agent-bridge) — 飞书 ↔ Claude Code / Codex 桥
-- [xile611/lark-codex-bridge](https://github.com/xile611/lark-codex-bridge) — 飞书 ↔ Codex 桥
-- [VicLuoV5/lark-agents-bridge](https://github.com/VicLuoV5/lark-agents-bridge) — 飞书 ↔ 本地 Agents 桥
-
-感谢 [lark-cli] 提供的飞书长连接与 IM 能力底座。
+使用本项目无需安装其他飞书 ↔ Codex 桥接项目。实际运行依赖与配置要求见[快速开始](#快速开始)。
 
 ## 商标与免责声明
 

@@ -152,7 +152,7 @@ class CodexClient {
       if (this.finished || this.disposed) { rej(new Error('client finished, run rejected')); return; } // 不得悬挂（R04）
       this.runResolve = res; this.runReject = rej;
       this.turnSubmissionAttempted = true;
-      this._req('turn/start', {threadId: this.threadId, input: [{type: 'text', text: task, text_elements: []}], cwd: this.cwd, ...(options.outputSchema ? {outputSchema: options.outputSchema} : {})}, 30000)
+      this._req('turn/start', {threadId: this.threadId, input: [{type: 'text', text: task, text_elements: []}, ...(options.images||[]).map(p=>({type:'localImage',path:p}))], cwd: this.cwd, ...(options.outputSchema ? {outputSchema: options.outputSchema} : {})}, 30000)
         .then(r => { this.turnId = r.turn.id; this.turnSubmitted = true; })
         .catch(e => this._finish('failed', e));
     });

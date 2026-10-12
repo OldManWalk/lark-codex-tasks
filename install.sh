@@ -14,6 +14,11 @@ CONFIG_DIR=${LCT_CONFIG_DIR:-"$HOME/.config/lark-codex-tasks"}
 STATE_DIR=${LCT_STATE_DIR:-"$HOME/.local/state/lark-codex-tasks"}
 WORKSPACE=${LCT_WORKSPACE_ROOT:-"$HOME/workspace"}
 SERVICE=${LCT_SERVICE_NAME:-lark-codex-tasks}
+CACHE_DIR=${LCT_CACHE_DIR:-"$HOME/.cache/$SERVICE"}
+PERSIST_DIR=${LCT_PERSIST_DIR:-"$WORKSPACE/persist/$SERVICE"}
+KNOWLEDGE_DIR=${LCT_KNOWLEDGE_DIR:-"$WORKSPACE/knowledge/content"}
+ARCHIVE_DIR=${LCT_ARCHIVE_DIR:-"$KNOWLEDGE_DIR/任务归档"}
+RETENTION_DAYS=${LCT_CACHE_RETENTION_DAYS:-7}
 ENV_FILE="$CONFIG_DIR/bridge.env"
 UNIT_DIR="$HOME/.config/systemd/user"
 
@@ -63,6 +68,13 @@ cmd_init(){
     ask OWNER_NAME "审批卡片显示的操作人名字" "owner"
     ask OPS_CHAT "运维兜底群 chat_id（oc_ 开头，可留空）" ""
     ask BRAND "品牌串（出现在回执与归档中）" "lark-codex-tasks"
+    ask CACHE_DIR "临时 Cache 目录（附件缓存）" "$CACHE_DIR"
+    ask PERSIST_DIR "长期保留 Persist 目录（不自动清理）" "$PERSIST_DIR"
+    ask KNOWLEDGE_DIR "知识库 / 归档项目目录" "$KNOWLEDGE_DIR"
+    ARCHIVE_DIR=${LCT_ARCHIVE_DIR:-"$KNOWLEDGE_DIR/任务归档"}
+    ask ARCHIVE_DIR "任务归档文件目录（不自动清理）" "$ARCHIVE_DIR"
+    ask RETENTION_DAYS "附件缓存保留天数" "$RETENTION_DAYS"
+    "$NODE_BIN" -e 'const p=require("node:path");for(const s of process.argv.slice(1,5))if(!p.isAbsolute(s)||/[\r\n\0]/.test(s))process.exit(1);const n=Number(process.argv[5]);if(!Number.isSafeInteger(n)||n<1)process.exit(1);if(p.resolve(process.argv[1])===p.resolve(process.argv[2]))process.exit(1)' "$CACHE_DIR" "$PERSIST_DIR" "$KNOWLEDGE_DIR" "$ARCHIVE_DIR" "$RETENTION_DAYS" || die "目录必须是绝对路径，Cache/Persist 不可相同，保留天数须为正整数"
     mkdir -p "$CONFIG_DIR"
     umask 077
     {
@@ -74,6 +86,11 @@ cmd_init(){
       echo "LCT_STATE_DIR=$STATE_DIR"
       echo "LCT_CONFIG_DIR=$CONFIG_DIR"
       echo "LCT_WORKSPACE_ROOT=$WORKSPACE"
+      echo "LCT_CACHE_DIR=$CACHE_DIR"
+      echo "LCT_PERSIST_DIR=$PERSIST_DIR"
+      echo "LCT_KNOWLEDGE_DIR=$KNOWLEDGE_DIR"
+      echo "LCT_ARCHIVE_DIR=$ARCHIVE_DIR"
+      echo "LCT_CACHE_RETENTION_DAYS=$RETENTION_DAYS"
       echo "LCT_NODE_BIN=$NODE_BIN"
       echo "LCT_CODEX_PKG=$CODEX_PKG"
     } > "$ENV_FILE"
@@ -81,7 +98,7 @@ cmd_init(){
     ok "已写入 $ENV_FILE"
   fi
 
-  mkdir -p "$STATE_DIR/dm-codex-home" "$WORKSPACE/scratch" "$WORKSPACE/knowledge/content" "$UNIT_DIR"
+  mkdir -p "$STATE_DIR/dm-codex-home" "$WORKSPACE/scratch" "$KNOWLEDGE_DIR" "$ARCHIVE_DIR" "$CACHE_DIR/attachments" "$PERSIST_DIR/attachments" "$UNIT_DIR"
   chmod 700 "$STATE_DIR" "$STATE_DIR/dm-codex-home"
   if [ ! -f "$CONFIG_DIR/projects.json" ]; then
     printf '{\n  "scratch": "%s"\n}\n' "$WORKSPACE/scratch" > "$CONFIG_DIR/projects.json"
@@ -109,9 +126,9 @@ Wants=network-online.target
 Type=simple
 # 开机早期 DNS 未就绪时取 token 会失败；先等 DNS 可用（最多 60s）
 ExecStartPre=/bin/sh -c 'i=0; while [ \$i -lt 30 ]; do getent hosts open.feishu.cn >/dev/null 2>&1 && exit 0; i=\$((i+1)); sleep 2; done; exit 1'
-EnvironmentFile=$ENV_FILE
+EnvironmentFile="$ENV_FILE"
 Environment=PATH=$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=$NODE_BIN $PREFIX/lark-bridge.cjs
+ExecStart="$NODE_BIN" "$PREFIX/lark-bridge.cjs"
 Restart=always
 RestartSec=5
 TimeoutStopSec=20

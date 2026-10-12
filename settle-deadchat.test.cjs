@@ -1,4 +1,4 @@
-// 结算容错回归测试（v0.2.1）：群已解散（232009/230002）时 /done 应照常清账；
+// 结算容错回归测试（v0.2.1）：明确群已解散（232009）时 /done 应照常清账；
 // 真实异常仍失败并保留绑定可重试；通知/解散双失败但群已死时仍完成清账。全部使用合成 fake。
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),vm=require('node:vm');
@@ -59,9 +59,9 @@ test('S2: genuine dissolve failure keeps binding for retry',async t=>{
  assert(!job.settledAt,'settledAt 不应落盘');
 });
 
-// ── S3：通知 230002 + 解散 232009（群早已死透）→ 仍完成清账 ──
-test('S3: send 230002 + dissolve 232009 (group long gone) still settles',async t=>{
- const {a}=bridge(t,{deleteCode:232009,sendCode:230002});
+// ── S3：通知明确群已解散 + 解散明确群已解散 → 完成清账 ──
+test('S3: send and dissolve 232009 (group long gone) still settles',async t=>{
+ const {a}=bridge(t,{deleteCode:232009,sendCode:232009});
  const job=bindJob(a,'oc_gS','aaaa11110000');
  const r=await a.settle(job);
  assert(/已结算/.test(r),r);

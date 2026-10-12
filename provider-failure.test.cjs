@@ -64,3 +64,11 @@ test('normal failure and success do not get misleading provider recovery hints',
  assert(!failureHint({status:'failed',error:overload}).includes('续接原任务会话'));
  assert.match(failureHint({status:'failed',error:overload,threadId:'t',retryBlocked:'submission-uncertain'}),/尚未确认/);
 });
+
+
+test('native image paths and text travel together in turn/start without losing output schema',async()=>{
+ const {c}=fakeClient();let request;c._req=async(method,params)=>{request={method,params};return {turn:{id:'turn-test'}};};const schema={type:'object'};
+ const result=c.run('compare screenshots',{images:['/cache/a.png','/persist/b.png'],outputSchema:schema});await tick();
+ assert.equal(request.method,'turn/start');assert.deepEqual(request.params.input,[{type:'text',text:'compare screenshots',text_elements:[]},{type:'localImage',path:'/cache/a.png'},{type:'localImage',path:'/persist/b.png'}]);assert.equal(request.params.outputSchema,schema);
+ c._onEvent('turn/completed',{turn:{id:c.turnId,status:'completed',items:[]}});await result;
+});

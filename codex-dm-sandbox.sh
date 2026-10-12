@@ -8,6 +8,9 @@ state_root=${LCT_STATE_DIR:-"$dm_home/.local/state/lark-codex-tasks"}
 dm_state="$state_root/dm-codex-home"
 workspace_root=${LCT_WORKSPACE_ROOT:-"$dm_home/workspace"}
 scratch_dir=${LCT_SCRATCH_DIR:-"$workspace_root/scratch"}
+service_name=${LCT_SERVICE_NAME:-lark-codex-tasks}
+cache_dir=${LCT_CACHE_DIR:-"$dm_home/.cache/$service_name"}
+persist_dir=${LCT_PERSIST_DIR:-"$workspace_root/persist/$service_name"}
 node_bin=${LCT_NODE_BIN:-"$dm_home/.local/bin/node"}
 codex_pkg=${LCT_CODEX_PKG:-"$dm_home/.local/lib/node_modules/@openai/codex"}
 codex_scope=$(dirname "$codex_pkg")      # …/node_modules/@openai
@@ -30,6 +33,8 @@ exec /usr/bin/bwrap \
   --ro-bind "$codex_pkg" "$codex_pkg" \
   --dir "$workspace_root" \
   --bind "$scratch_dir" "$scratch_dir" \
+  --dir "$cache_dir" --bind "$cache_dir/attachments" "$cache_dir/attachments" \
+  --dir "$persist_dir" --bind "$persist_dir/attachments" "$persist_dir/attachments" \
   --dir "$dm_home/.codex" --bind "$dm_state" "$dm_home/.codex" \
   --tmpfs /tmp --tmpfs "$dm_runtime_dir" --proc /proc --dev /dev \
   --setenv HOME "$dm_home" --setenv CODEX_HOME "$dm_home/.codex" \

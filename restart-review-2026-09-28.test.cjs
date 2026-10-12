@@ -188,7 +188,7 @@ const postMsg=(chat_type,chat_id,post,id)=>({type:'im.message.receive_v1',chat_t
 test('F07a: rich-text post in bound group is parsed, mention stripped, enqueued once',async t=>{
  const {a}=bridge(t);mockCodex(t);
  bindGroup(a,'oc_gPost','cccc33334444','thread-P');
- const r=await a.respond(postMsg('group','oc_gPost',{title:'',content:[[{tag:'at',user_id:'ou_bot',user_name:'小任'},{tag:'text',text:' 查一下路由器状态 '},{tag:'a',text:'文档',href:'http://x'}],[{tag:'text',text:'第二行内容'}],[{tag:'img',image_key:'img_x'}]]},'om_POST1'));
+ const r=await a.respond(postMsg('group','oc_gPost',{title:'',content:[[{tag:'at',user_id:'ou_bot',user_name:'小任'},{tag:'text',text:' 查一下路由器状态 '},{tag:'a',text:'文档',href:'http://x'}],[{tag:'text',text:'第二行内容'}],[{tag:'media',file_key:'video_x'}]]},'om_POST1'));
  assert(/收到，正在启动本群任务。/.test(r),r);
  const item=a.queues['oc_gPost'].items[0];
  assert.equal(item.kind,'task');
@@ -202,10 +202,10 @@ test('F07b: post message in DM enqueues as dialog',async t=>{
  assert.equal(a.queues['oc_dmPost'].items[0].kind,'dm');
  assert.equal(a.queues['oc_dmPost'].items[0].text,'你好助手');
 });
-test('F07c: media-only post gets explicit hint, no queue entry, no model run',async t=>{
+test('F07c: unsupported video-only post gets explicit hint without model run',async t=>{
  const {a}=bridge(t);const {runs}=mockCodex(t);
  bindGroup(a,'oc_gImg','dddd44445555','thread-I');
- const r=await a.respond(postMsg('group','oc_gImg',{content:[[{tag:'img',image_key:'img_x'}]]},'om_POST3'));
+ const r=await a.respond(postMsg('group','oc_gImg',{content:[[{tag:'media',file_key:'video_x'}]]},'om_POST3'));
  assert(/没有从这条富文本消息中提取到文字/.test(r),r);
  assert(!a.queues['oc_gImg']||!a.queues['oc_gImg'].items.length,'未入队');
  await new Promise(r2=>setTimeout(r2,50));assert.equal(runs.length,0,'零模型调用');
@@ -298,7 +298,7 @@ test('F06d2: DM turn/start response timeout is not blind-replayed',async t=>{
  await a.respond(msg('p2p','oc_dm_timeout','执行一次副作用','om_DT_TIMEOUT'));
  assert(await until(()=>a.queues['oc_dm_timeout']?.items[0]?.status==='failed'));
  assert.equal(runs,1,'请求已写出、响应丢失：外层不能重新执行');
- assert.match(a.queues['oc_dm_timeout'].items[0].error,/结果未知，未自动重发/);
+ assert.match(a.queues['oc_dm_timeout'].items[0].error,/是否受理未知，未自动重发/);
 });
 test('F06e: sequential DM turns return client count to baseline (no leak)',async t=>{
  const {a}=bridge(t);

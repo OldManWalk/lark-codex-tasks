@@ -113,13 +113,13 @@ test('R5: reaction API failure is logged but never blocks the task',async t=>{
 });
 
 // ── R6：私聊对话受理贴 OneSecond，回复完成贴 DONE，指令版本随任务群纪律升级 ──
-test('R6: dm conversation gets OneSecond on accept and DONE on reply; task instr v2 carries discipline',async t=>{
+test('R6: dm conversation gets OneSecond on accept and DONE on reply; task instr v3 carries discipline',async t=>{
  const {a,calls}=bridge(t);
  mockCodex(t); // run 立即成功 → dmDecision 走 reply 兜底
  await a.respond(msg('p2p','oc_dm','你好','om_R6'));
  assert(await until(()=>reactCreates(calls).includes('OneSecond')),'受理应贴 OneSecond');
  assert(await until(()=>reactCreates(calls).includes('DONE')),'回复完成应贴 DONE');
  assert(!reactCreates(calls).includes('CrossMark'),'正常回复不应贴失败表情');
- assert(a.consts.TASK_INSTR_VERSION==='group-task-v2','任务群指令版本应升级');
+ assert(a.consts.TASK_INSTR_VERSION==='group-task-v3','任务群指令版本应升级');
  assert(/禁止自行调用飞书 CLI/.test(a.consts.TASK_INSTRUCTIONS)&&/在当前本群讨论推进/.test(a.consts.TASK_INSTRUCTIONS),'指令含工作场所纪律');
 });

@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const {execFileSync} = require('node:child_process');
 const {CodexClient} = require('./codex-client.cjs');
 const {classifyFailure,failureHint}=require('./task-failure.cjs');
-const {buildConfig}=require('./config.cjs');
+const {buildConfig,buildTaskInstructions}=require('./config.cjs');
 
 const MODES = {
   auto: {sandbox: 'danger-full-access', approvalPolicy: 'on-request'}, // 日常任务直接执行，确需人工判断时申请
@@ -12,11 +12,7 @@ const MODES = {
   yolo: {sandbox: 'danger-full-access', approvalPolicy: 'never'},   // 全自动
 };
 // 任务群线程的默认通用安全约束（无人格）。调用方可经 options.taskInstructions 覆盖。
-function defaultTaskInstructions(env){const c=buildConfig(env||process.env);return [
- '你是 '+c.brand+' 任务群的 Codex 执行单元，在任务群绑定的任务链内工作。',
- c.safety,
-'工作场所纪律：禁止自行调用飞书 CLI（lark-cli）或飞书开放平台 API 建群、解散群、修改群信息、发消息；建群、通知、归档、解散由宿主 bridge 完成。任务文本中"建一个群讨论 X"类表述意为在当前本群讨论推进 X。',
-].join('\n');}
+function defaultTaskInstructions(env){return buildTaskInstructions(buildConfig(env||process.env));}
 
 function sanitizeEnv(env){const out={...env};for(const k of Object.keys(out))if(/^LARK_|^FEISHU_/i.test(k))delete out[k];return out;}
 function atomic(file, value) { fs.mkdirSync(path.dirname(file), {recursive:true,mode:0o700}); fs.writeFileSync(file+'.tmp', JSON.stringify(value,null,2),{mode:0o600}); fs.renameSync(file+'.tmp',file); }
@@ -38,6 +34,7 @@ function parse(text) {
    if(cmd==='/done'||cmd==='/logs'){ if(rest&&!/^[a-f0-9]{12}$/.test(rest)) throw Error('任务 ID 格式不正确。'); return rest?{cmd,id:rest}:{cmd}; }
    if(cmd==='/cancel'&&!rest)return {cmd}; // 裸 /cancel：私聊取消本会话执行中的对话（N02）
    if(!rest||!/^[a-f0-9]{12}$/.test(rest))throw Error('用法: '+cmd+' <任务ID>');return {cmd,id:rest};}
+ if(cmd==='/keep'){if(!/^om_[\w-]+-\d+$/.test(rest))throw Error('用法: /keep <附件ID>（/files 查看）');return {cmd,id:rest};}
  if(cmd==='/qdrop'){if(!rest||!/^\d{1,4}$/.test(rest))throw Error('用法: /qdrop <排队序号>');return {cmd,seq:parseInt(rest,10)};}
  if(cmd==='/adopt'){const mm=rest.match(/^(oc_[\w-]+)\s+([a-z][a-z0-9_-]{0,31})\s+([\s\S]+)$/);if(!mm||!mm[3].trim())throw Error('用法: /adopt <群ID> <项目> <任务>');return {cmd,chat:mm[1],alias:mm[2],task:mm[3].trim()};}
  if(cmd==='/outbox'){
@@ -46,7 +43,7 @@ function parse(text) {
    if(!m||(m[1]==='show'&&(m[3]||m[4]))||(m[1]==='retry'&&(m[3]||!m[4]))||(m[1]==='resolve'&&(!m[3]||!m[4])))throw Error('用法: /outbox [show <ID> | retry <ID> --checked | resolve <ID> delivered|obsolete --checked]');
    return {cmd,action:m[1],id:m[2],resolution:m[3]||null};
  }
- if(!['/ping','/status','/projects','/jobs','/help','/groups','/cleanup','/queue','/qpause','/qresume','/qclear','/auditgroups'].includes(cmd)||rest)throw Error('未知命令。输入 /help 查看帮助。');return {cmd};
+ if(!['/ping','/status','/projects','/jobs','/help','/groups','/cleanup','/queue','/qpause','/qresume','/qclear','/auditgroups','/files'].includes(cmd)||rest)throw Error('未知命令。输入 /help 查看帮助。');return {cmd};
 }
 function parseRun(text){ // natural dispatch: "<alias> <task>" possibly with --yolo/--safe tail
  const m=text.trim().match(/^([a-z][a-z0-9_-]{0,31})\s+([\s\S]+)$/); if(!m) return null;
@@ -114,7 +111,7 @@ class Supervisor {
  const mode=MODES[opts.mode]?opts.mode:'auto';
  const id=crypto.randomBytes(6).toString('hex'),dir=path.join(this.state,id);
  if(opts.resumeThread){
-   const job={id,alias,chat,message,mode,task,resume:opts.resumeThread,started:Date.now(),status:'running',notifyPending:false,retried:false};
+   const job={id,alias,chat,message,mode,task,images:opts.images||[],resume:opts.resumeThread,started:Date.now(),status:'running',notifyPending:false,retried:false};
    this.jobs.set(id,job);fs.mkdirSync(dir,{recursive:true,mode:0o700});this.save(job);
    fs.closeSync(fs.openSync(path.join(dir,'output.log'),'a',0o600));
    const env={...sanitizeEnv(this.env),LCT_JOB_ID:id,LCT_JOB_CHAT_ID:chat};
@@ -129,12 +126,12 @@ class Supervisor {
      const envs=(client.thread&&client.thread.environments)||[];
      job.cwd=(envs[0]&&envs[0].cwd)||dirs[alias];job.worktree=null;job.branch=null;
      this.save(job);
-     client.run(task).then(r=>{job.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e=>this._done(id,e));
+     client.run(task,{images:job.images||[]}).then(r=>{job.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e=>this._done(id,e));
    }catch(e){this.clients.delete(id);job.status='failed';job.finished=Date.now();job.error=String(e.message||e);job.notifyPending=false;this.save(job);try{client.child&&client.child.kill('SIGKILL');}catch{}throw e;}
    return id;
  }
  const checkout=worktreeFor(dirs[alias],this.root,alias,id,opts.base||null);fs.mkdirSync(dir,{mode:0o700});
- const job={id,alias,chat,message,mode,task,...checkout,started:Date.now(),status:'running',notifyPending:false,retried:false};this.jobs.set(id,job);this.save(job);
+ const job={id,alias,chat,message,mode,task,images:opts.images||[],...checkout,started:Date.now(),status:'running',notifyPending:false,retried:false};this.jobs.set(id,job);this.save(job);
  const out=fs.openSync(path.join(dir,'output.log'),'a',0o600);fs.closeSync(out);
  const env={...sanitizeEnv(this.env),LCT_JOB_ID:id,LCT_JOB_CHAT_ID:chat};
  const factory=this.clientFactory||(o=>new CodexClient(o));
@@ -144,11 +141,11 @@ class Supervisor {
  this.clients.set(id,client);
  try{
    job.threadId=await client.start();this.save(job);
-   client.run(task).then(r=>{job.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e=>this._done(id,e));
+   client.run(task,{images:job.images||[]}).then(r=>{job.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e=>this._done(id,e));
  }catch(e){this.clients.delete(id);job.status='failed';job.finished=Date.now();job.error=String(e.message||e);job.notifyPending=false;this.save(job);try{client.child&&client.child.kill('SIGKILL');}catch{}throw e;}
  return id;
  }
- async continueJob(jobId,task,chat,message){
+ async continueJob(jobId,task,chat,message,opts={}){
  const j0=this.jobs.get(jobId);if(!j0)throw Error('未知任务。');
  if(['running','cancelling'].includes(j0.status))throw Error('任务还在运行，等它完成或 /cancel 后再接续。');
  if(this.clients.size>=2)throw Error('已有 2 个任务在运行。');
@@ -158,7 +155,7 @@ class Supervisor {
  if(!j0.threadId)throw Error('该任务没有可续接的会话线程。');
  const cwd=j0.cwd||j0.worktree||j0.contentDir;if(!cwd)throw Error('任务工作目录缺失。');
  const id=crypto.randomBytes(6).toString('hex'),dir=path.join(this.state,id);
- const job={id,alias:j0.alias,chat,message,mode:j0.mode||'auto',task,threadId:null,resume:j0.threadId,cwd,worktree:j0.worktree||null,branch:j0.branch||null,started:Date.now(),status:'running',notifyPending:false,retried:false,continuedFrom:jobId};
+ const job={id,alias:j0.alias,chat,message,mode:j0.mode||'auto',task,images:opts.images||[],threadId:null,resume:j0.threadId,cwd,worktree:j0.worktree||null,branch:j0.branch||null,started:Date.now(),status:'running',notifyPending:false,retried:false,continuedFrom:jobId};
  this.jobs.set(id,job);fs.mkdirSync(dir,{recursive:true,mode:0o700});this.save(job);
  fs.closeSync(fs.openSync(path.join(dir,'output.log'),'a',0o600));
  const env={...sanitizeEnv(this.env),LCT_JOB_ID:id,LCT_JOB_CHAT_ID:chat};
@@ -170,7 +167,7 @@ class Supervisor {
  this.clients.set(id,client);
  try{
    job.threadId=await client.start();this.save(job);
-   client.run(task).then(r=>{job.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e=>this._done(id,e));
+   client.run(task,{images:job.images||[]}).then(r=>{job.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e=>this._done(id,e));
  }catch(e){this.clients.delete(id);job.status='failed';job.finished=Date.now();job.error=String(e.message||e);job.notifyPending=false;this.save(job);try{client.child&&client.child.kill('SIGKILL');}catch{}throw e;}
  return id;
  }
@@ -184,7 +181,7 @@ class Supervisor {
     onApproval:(method,params,respond,ctx)=>this.onApproval?this.onApproval(j,method,params,respond,ctx):respond('decline'),
     onLog:x=>{try{this.appendLog(id,'[retry] '+x);}catch{}}});
    this.clients.set(id,c2);
-   c2.start().then(threadId=>{j.threadId=threadId;this.save(j);return c2.run(j.task);}).then(r=>{j.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e2=>this._done(id,e2));
+   c2.start().then(threadId=>{j.threadId=threadId;this.save(j);return c2.run(j.task,{images:j.images||[]});}).then(r=>{j.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e2=>this._done(id,e2));
    return;}
  if(this.terminalPending&&this.terminalPending.has(id))return;
  if(error){

@@ -269,6 +269,11 @@ cd lark-codex-tasks
 | `LARK_OWNER_NAME` | | `owner` | 审批卡片上显示的操作人 |
 | `LCT_BRAND` | | `lark-codex-tasks` | 品牌串（/ping、指令、归档署名） |
 | `LCT_SERVICE_NAME` | | `lark-codex-tasks` | systemd 服务名（写入 AI 安全约束） |
+| `LCT_CACHE_DIR` | | `~/.cache/<serviceName>` | 上传附件缓存（受管 attachments/） |
+| `LCT_PERSIST_DIR` | | `~/workspace/persist/<serviceName>` | 长期保留附件，不自动清理 |
+| `LCT_CACHE_RETENTION_DAYS` | | `7` | 缓存保留天数，活动引用受保护 |
+| `LCT_ATTACHMENT_MAX_COUNT` | | `8` | 单条消息附件上限 |
+| `LCT_ATTACHMENT_MAX_BYTES` | | `26214400` | 下载后的单文件接收上限（25 MiB） |
 | `LCT_STATE_DIR` | | `~/.local/state/lark-codex-tasks` | 状态目录 |
 | `LCT_CONFIG_DIR` | | `~/.config/lark-codex-tasks` | 配置目录 |
 | `LCT_WORKSPACE_ROOT` | | `~/workspace` | 工作区根目录 |
@@ -440,3 +445,17 @@ All deployment config lives in one env file (`~/.config/lark-codex-tasks/bridge.
 MIT © 2026 OldManWalk. Independent implementation inspired by the MIT-licensed projects listed above; not affiliated with ByteDance or OpenAI.
 
 [lark-cli]: https://github.com/larksuite/cli
+
+
+### 附件与存储
+
+安装问卷支持自定义 Cache、Persist、知识库项目和归档目录。上传附件先持久入队，再异步下载；支持独立图片/文件和富文本内嵌图片。图片以原生 localImage 传入 Codex，实际模型识图需单独验收。
+
+缓存默认保留 7 天，排队/执行/审批及未结算任务链引用的文件会保护；`/keep <附件ID>` 可长期保留，`/files` 可查路径。结算归档会保留引用的附件。Persist、Markdown 归档及原始 Session 不参与自动清理。完整规则见 [存储策略](docs/storage-policy.md)。
+
+
+### 开发与发布边界
+
+任务 worker 可以按用户明确授权处理飞书业务文档、知识库、表格和文件，并交付业务产物；不能另建任务群、修改群成员或操作 bridge 的审批、状态和结算控制。私聊与任务群指令分离。
+
+`release.sh` 默认只扫描候选并预览差异，发布工作树不变。`--apply` 在扫描和候选测试通过后写入显式白名单；`--commit -m "说明"` 提交；`--push` 才推送本次提交，`--tag` 只处理指定且版本匹配的标签。目标有改动、未知跟踪文件、危险链接或远端变化时停止，由维护者核对，不自动删除或覆盖。正则扫描不代替内容审阅。

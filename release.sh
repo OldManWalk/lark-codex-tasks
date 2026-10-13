@@ -8,8 +8,8 @@ NODE_BIN=${LCT_NODE_BIN:-node}
 exec "$NODE_BIN" - "$@" <<'NODE'
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),crypto=require('node:crypto');
 const {execFileSync}=require('node:child_process');
-const rootNames=['config.cjs','codex-client.cjs','lark-bridge.cjs','supervisor.cjs','hooks-rpc.cjs','hook-notify.cjs','report-card.cjs','task-failure.cjs','media-cache.cjs','codex-dm-sandbox.sh','smoke.cjs','release.sh'];
-const testNames=['identity-explicit.test.cjs','incoming-media.test.cjs','provider-failure.test.cjs','reaction-states.test.cjs','report-card.test.cjs','restart-review-2026-09-28.test.cjs','session-isolation.test.cjs','settle-deadchat.test.cjs','supervisor.test.cjs','task-queue.test.cjs','task-routing-2026-09-28.test.cjs','stability-recovery.test.cjs','media-cache.test.cjs','install-storage.test.cjs','task-discipline.test.cjs','release-safety.test.cjs'];
+const rootNames=['config.cjs','codex-client.cjs','lark-bridge.cjs','supervisor.cjs','hooks-rpc.cjs','hook-notify.cjs','report-card.cjs','report-file.cjs','md2pdf.py','task-failure.cjs','media-cache.cjs','codex-dm-sandbox.sh','smoke.cjs','release.sh'];
+const testNames=['identity-explicit.test.cjs','incoming-media.test.cjs','provider-failure.test.cjs','reaction-states.test.cjs','report-card.test.cjs','report-file.test.cjs','report-delivery.test.cjs','restart-review-2026-09-28.test.cjs','session-isolation.test.cjs','settle-deadchat.test.cjs','supervisor.test.cjs','task-queue.test.cjs','task-routing-2026-09-28.test.cjs','stability-recovery.test.cjs','media-cache.test.cjs','install-storage.test.cjs','task-discipline.test.cjs','release-safety.test.cjs'];
 const docNames=['.gitignore','README.md','CHANGELOG.md','LICENSE','install.sh','package.json','docs/feishu-app-setup.md','docs/logo.png','docs/storage-policy.md','examples/bridge.env.example','examples/persona.example.md','examples/projects.json.example'];
 const source=fs.realpathSync(process.env.LCT_RELEASE_SOURCE),target=fs.realpathSync(process.env.LCT_RELEASE_DIR||path.join(os.homedir(),'lark-codex-tasks'));
 const env={...process.env,GIT_OPTIONAL_LOCKS:'0'};

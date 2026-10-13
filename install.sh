@@ -37,6 +37,7 @@ install_runtime(){
   if [ "$PKG_DIR" != "$PREFIX" ]; then
     cp "$PKG_DIR"/*.cjs "$PREFIX"/
     cp "$PKG_DIR"/codex-dm-sandbox.sh "$PREFIX"/
+    cp "$PKG_DIR"/md2pdf.py "$PREFIX"/
   fi
   chmod 700 "$PREFIX"/codex-dm-sandbox.sh
   chmod 600 "$PREFIX"/*.cjs

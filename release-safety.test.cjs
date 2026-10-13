@@ -4,7 +4,7 @@ const git=(dir,args)=>execFileSync('git',['-C',dir,...args],{encoding:'utf8',std
 function fixture(t){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'lct-release-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
  const src=path.join(root,'source'),dst=path.join(root,'target'),tmp=path.join(root,'tmp');for(const p of [src,dst,tmp])fs.mkdirSync(p);
- for(const name of fs.readdirSync(__dirname).filter(n=>n.endsWith('.cjs')||n.endsWith('.sh')))fs.copyFileSync(path.join(__dirname,name),path.join(src,name));
+ for(const name of fs.readdirSync(__dirname).filter(n=>n.endsWith('.cjs')||n.endsWith('.sh')||n==='md2pdf.py'))fs.copyFileSync(path.join(__dirname,name),path.join(src,name));
  if(fs.existsSync(path.join(__dirname,'release')))fs.cpSync(path.join(__dirname,'release'),path.join(src,'release'),{recursive:true});
  else for(const name of ['.gitignore','README.md','CHANGELOG.md','LICENSE','install.sh','package.json','docs','examples'])fs.cpSync(path.join(__dirname,name),path.join(src,name),{recursive:true});
  for(const name of fs.readdirSync(src).filter(n=>n.endsWith('.test.cjs')))fs.writeFileSync(path.join(src,name),'const {test}=require("node:test");test("fixture gate",()=>{});\n');

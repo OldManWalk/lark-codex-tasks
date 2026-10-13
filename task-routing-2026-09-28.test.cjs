@@ -59,7 +59,9 @@ test('OpenWrt is an equipment target, not an unregistered project; a fresh route
  assert(await until(()=>a.dispatches.om_OPENWRT_TARGET?.status==='done'));
  assert.equal(a.supervisor.jobs.get(a.groups.oc_new.anchor).alias,'scratch');
  assert.match(a.groups.oc_new.title,/OpenWrt 路由器配置/);
- assert.equal(runs.find(x=>x.kind!=='lct-chat'&&x.kind!=='lct-router').task,request);
+ const workerTask=runs.find(x=>x.kind!=='lct-chat'&&x.kind!=='lct-router').task;
+ assert.equal(workerTask,'配置路由器','委派给 worker 的是路由提取的任务内容');
+ assert(!workerTask.includes('建一个群')&&!workerTask.includes('建群'),'控制面措辞（建群）不带入 worker 任务文本');
  assert.equal(starts.find(x=>x.instr.includes('独立的私聊动作复核器')).resume,null,'动作复核使用独立新线程');
  assert.equal(a.sessions['dm:oc_dm'].thread,starts[0].resume||'thread-1','复核线程不污染私聊会话');
  assert.equal(calls.filter(c=>c.includes('+chat-create')).length,1);
@@ -245,7 +247,7 @@ test('a new scratch group starts while another scratch group is running',async t
  assert.match(a.groups.oc_new.title,/VPS 用途调研/);
  assert.doesNotMatch(a.groups.oc_new.title,/scratch/);
  assert.notEqual(job.threadId,'thread-existing');
- assert.equal(runs.find(x=>x.kind!=='lct-chat').task,'帮我建一个项目群，我有一个 VPS 想知道它能做什么');
+ assert.equal(runs.find(x=>x.kind!=='lct-chat').task,'研究 VPS 能做什么','委派用提取后的任务内容，不含建群措辞');
  assert.equal(calls.filter(c=>c.includes('+chat-create')).length,1);
 });
 
@@ -317,7 +319,9 @@ test('DemoBot group request routes directly from DM to the registered project',a
  assert.match(reply,/处理中，稍后回报/);
  assert(await until(()=>runs.some(x=>x.kind!=='lct-chat')),'独立群 worker 已启动');
  assert.equal(a.supervisor.jobs.get(a.groups.oc_new.anchor).alias,'demobot');
- assert.equal(runs.find(x=>x.kind!=='lct-chat').task,request,'任务正文保留用户原话');
+ const demoTask=runs.find(x=>x.kind!=='lct-chat').task;
+ assert.equal(demoTask,'给我的 DemoBot 配置一些技能','委派用提取后的任务内容');
+ assert(!demoTask.includes('群组')&&!demoTask.includes('起一个'),'建群措辞不带入 worker 任务');
  assert.equal(calls.filter(c=>c.includes('+chat-create')).length,1);
  assert.equal(a.queues.oc_dm.items[0].status,'done');
 });
@@ -385,7 +389,7 @@ test('polite new-task request creates a research group and waits for later deplo
  assert(await until(()=>runs.some(x=>x.kind!=='lct-chat')),'任务群 worker 已启动');
  assert.equal(a.dispatches['om_SUB2API'].status,'done');
  assert.equal(a.supervisor.jobs.get(a.groups['oc_new'].anchor).alias,'scratch');
- assert.equal(runs.find(x=>x.kind!=='lct-chat').task,'小任，帮我起一个任务，我打算部署一下 edgeapi，我想调研方案，稍后我发给你我的需求');
+ assert.equal(runs.find(x=>x.kind!=='lct-chat').task,'调研 edgeapi 部署方案；用户稍后补充需求，收到前不部署','委派用提取后的任务内容，不含起任务措辞');
  assert.equal(a.queues.oc_dm.items[0].status,'done');
 });
 

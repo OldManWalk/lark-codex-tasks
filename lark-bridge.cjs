@@ -10,6 +10,7 @@ const {Supervisor,parse,parseRun,projects,redact,atomic}=require('./supervisor.c
 const {CodexClient}=require('./codex-client.cjs');
 const {buildReportCard,reportExcerpt}=require('./report-card.cjs');
 const mediaCache=require('./media-cache.cjs');
+const {saveReportFiles}=require('./report-file.cjs');
 const run=promisify(execFile),home=os.homedir();
 const configModule=require('./config.cjs');
 const CFG=configModule.buildConfig(process.env,home);
@@ -301,11 +302,36 @@ function sweepAttachments(){
 async function sendReportCard(chat,job,key,fallback){
   try{await sendCard(chat,JSON.stringify(buildReportCard(job)),key);}
   catch(e){
-    const detail=String(e.larkError?.message||'');
-    if(!e.larkError||!/invalid|schema|unsupported|not supported|parameter|400\d{3}/i.test(detail))throw e;
+    if(!e.larkError)throw e; // 传输层失败投递状态未知：不降级补发，由 flush 以同一幂等键重试卡片
+    // 服务端明确拒绝（如 230099 table number over limit）：降级富文本，再降级纯文本，保证结论必达
+    const detail=String(e.larkError.message||'');
     console.error('[bridge] report card rejected, rich-text fallback:',redact(detail).slice(0,120));
-    await send(chat,reportExcerpt(fallback),key,'markdown');
+    try{await send(chat,reportExcerpt(fallback),key,'markdown');}
+    catch(e2){
+      if(!e2.larkError)throw e2; // 同理：传输层未知不继续降级
+      console.error('[bridge] markdown fallback rejected, plain text:',redact(String(e2.larkError.message||'')).slice(0,120));
+      await send(chat,reportExcerpt(fallback),key+'-plain','text');
+    }
   }
+}
+async function sendFileMessage(chat,absPath,key){ // lark-cli 只接受 cwd 相对路径，故以文件所在目录为工作目录
+  const j=await lark(['im','+messages-send','--chat-id',chat,'--file',path.basename(absPath),'--as','bot','--idempotency-key',messageKey(key)],90000,{cwd:path.dirname(absPath)});
+  return (j.data&&j.data.message_id)||null;
+}
+function reportFileNote(full,fileName){
+  const total=Array.from(full).length;
+  return Array.from(full).slice(0,1200).join('')+'\n\n📄 **完整报告共 '+total+' 字，已作为文件发送：`'+fileName+'`**（见上方文件消息，卡片仅展示开头）。';
+}
+async function deliverReport(chat,job,key,fallback){ // 长报告先发文件（PDF 优先）再发摘要卡；任何单点失败都不阻断另一种投递
+  const full=String(job.lastMessage||'');
+  if(full.length>CFG.reportFileThreshold&&CFG.reportsDir){
+    try{
+      const saved=await saveReportFiles(job,redact(full,process.env,Number.MAX_SAFE_INTEGER),{reportsDir:CFG.reportsDir,pythonBin:CFG.pythonBin,pdfScript:path.join(__dirname,'md2pdf.py'),fontPath:CFG.reportPdfFont,wantPdf:CFG.reportPdf});
+      await sendFileMessage(chat,saved.filePath,'jobfile-'+job.id);
+      job={...job,lastMessage:reportFileNote(full,saved.fileName)};
+    }catch(e){console.error('[bridge] report file delivery failed for '+job.id+':',redact(String(e&&e.message||e)).slice(0,160));}
+  }
+  await sendReportCard(chat,job,key,fallback);
 }
 async function deleteMessage(messageId){if(!messageId)return;try{await lark(['api','DELETE','/open-apis/im/v1/messages/'+messageId,'--as','bot'],15000);}catch(e){console.error('[bridge] msg delete failed:',e.message.slice(0,100));}}
 async function renameGroup(chat,name){try{await lark(['im','+chat-update','--as','bot','--chat-id',chat,'--name',name],20000);}catch(e){console.error('[bridge] rename failed:',e.message.slice(0,80));}}
@@ -529,7 +555,12 @@ async function runDmItem(chat,item){
       }else{
         const bootstrap=!decision.task.trim();
         const title=groupTopic(decision.title,bootstrap?'待补充需求':item.text);
-        const accepted=acceptIntent(item.messageId,{kind:'run',alias,task:bootstrap?GROUP_READY_TASK:item.text.trim(),title,mode:'auto',bootstrap,images:item.images||[],chat,messageId:item.messageId},()=>{
+        // 委派给 worker 的是路由提取出的任务内容，不把"帮我建个群"这类控制面措辞原句带入（worker 无权建群，原句会误导它）。
+        // 带附件时追加原文，保留正文里的附件路径等上下文。
+        let taskText=decision.task.trim();
+        if(item.media?.length)taskText=taskText?taskText+'\n'+item.text.trim():item.text.trim();
+        if(!taskText)taskText=item.text.trim();
+        const accepted=acceptIntent(item.messageId,{kind:'run',alias,task:bootstrap?GROUP_READY_TASK:taskText,title,mode:'auto',bootstrap,images:item.images||[],chat,messageId:item.messageId},()=>{
           item.status='done';item.finishedAt=Date.now();
           outboxPush(chat,'已受理《'+title+'》工作群请求；执行名额忙时自动排队，建好后发送任务 ID。','dmq-'+item.messageId);
           setReact(item,'done');
@@ -788,7 +819,7 @@ async function settle(job){
 }
 
 // ─────────────────── Supervisor ───────────────────
-const sendGuarded=async(chat,text,key,job)=>{if(dmChats.has(chat)){console.error('[bridge] job notification to DM suppressed');return;}return job?sendReportCard(chat,job,key,text):send(chat,text,key);};
+const sendGuarded=async(chat,text,key,job)=>{if(dmChats.has(chat)){console.error('[bridge] job notification to DM suppressed');return;}return job?deliverReport(chat,job,key,text):send(chat,text,key);};
 const supervisor=new Supervisor({state:path.join(state,'jobs'),root:CFG.workspaceRoot,config:path.join(CFG.configDir,'projects.json'),codex:path.join(bin,'codex'),env:process.env,send:sendGuarded,
   taskInstructions:TASK_INSTRUCTIONS,isDmThread:t=>dmThreadIds().has(t),
   onSettled:()=>{pump();}, // 任务终态唤醒队列调度（自动推进本群下一项）

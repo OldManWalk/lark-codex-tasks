@@ -49,6 +49,11 @@ function buildConfig(env=process.env,home=os.homedir()){
     cacheDir,
     persistDir,
     cacheRetentionDays:positiveInt('LCT_CACHE_RETENTION_DAYS',7),
+    reportFileThreshold:positiveInt('LCT_REPORT_FILE_THRESHOLD',2500),
+    reportsDir:e('LCT_REPORTS_DIR',path.join(persistDir,'reports')),
+    reportPdf:e('LCT_REPORT_PDF','1')!=='0', // 长报告尽力转 PDF 发送；设 0 只发 Markdown 文件
+    reportPdfFont:e('LCT_REPORT_PDF_FONT',path.join(home,'.local','share',serviceName,'fonts','NotoSansSC.ttf')),
+    pythonBin:e('LCT_PYTHON_BIN','python3'),
     attachmentMaxBytes:positiveInt('LCT_ATTACHMENT_MAX_BYTES',25*1024*1024),
     attachmentMaxCount:positiveInt('LCT_ATTACHMENT_MAX_COUNT',8),
     archiveDir:e('LCT_ARCHIVE_DIR',path.join(knowledgeDir,'任务归档')),

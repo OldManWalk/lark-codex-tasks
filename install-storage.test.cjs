@@ -6,7 +6,7 @@ test('installer preserves user-selected cache/persist/archive directories with s
  for(const dir of [home,pkg,bin,codexPkg])fs.mkdirSync(dir,{recursive:true});
  fs.symlinkSync(process.execPath,path.join(bin,'node'));
  for(const tool of ['systemctl','codex','lark-cli','bwrap']){const p=path.join(bin,tool);fs.writeFileSync(p,'#!/bin/sh\nexit 0\n',{mode:0o700});}
- for(const name of fs.readdirSync(__dirname).filter(n=>n.endsWith('.cjs')||n==='codex-dm-sandbox.sh'))fs.copyFileSync(path.join(__dirname,name),path.join(pkg,name));
+ for(const name of fs.readdirSync(__dirname).filter(n=>n.endsWith('.cjs')||n==='codex-dm-sandbox.sh'||n==='md2pdf.py'))fs.copyFileSync(path.join(__dirname,name),path.join(pkg,name));
  const installer=fs.existsSync(path.join(__dirname,'release/install.sh'))?path.join(__dirname,'release/install.sh'):path.join(__dirname,'install.sh');fs.copyFileSync(installer,path.join(pkg,'install.sh'));
  const cache=path.join(root,'selected cache'),persist=path.join(root,'selected persist'),knowledge=path.join(root,'selected archive project'),archive=path.join(root,'independent archive files');
  const input=['','','ou_test_owner','tester','','test brand',cache,persist,knowledge,archive,'7'].join('\n')+'\n';

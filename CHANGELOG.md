@@ -2,7 +2,17 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 约定，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [0.4.1] - 2026-10-13
+
+### Added
+
+- 长报告文件投递：任务结论超过阈值（默认 2500 字，LCT_REPORT_FILE_THRESHOLD）时，完整报告先落盘为 Markdown 并尽力转为 PDF（reportlab + 内嵌中文字体，LCT_REPORT_PDF/LCT_REPORT_PDF_FONT/LCT_REPORTS_DIR 可配），作为文件消息发送到任务群；结果卡只展示开头摘要并标注完整报告去向。PDF 转换失败自动退化为 Markdown 文件，不阻断交付。
+- 结果投递可观测性：flush 重试日志携带真实失败原因，不再只有 `notification pending for <id>`。
+
+### Fixed
+
+- 私聊委派建群任务时，worker 收到的任务文本改为路由提取的任务内容，不再携带“帮我建一个群”等控制面措辞；此前 worker 会纠结于自己无权建群（生产事故：郑州买房调研任务首条回复跑偏）。带附件时仍追加原文保留附件路径上下文。
+- 结果卡被服务端明确拒绝（如 230099 `card table number over limit`，表格密集型报告触发）时，降级为富文本、再降级纯文本，保证结论必达；此前兜底只认 schema 类错误，导致结果无限期卡死在通知重试中，用户只看到 DONE 表情。传输层失败（状态未知）保持不降级、由幂等键重试的原有纪律。
 
 ### Changed
 

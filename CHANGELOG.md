@@ -2,6 +2,12 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 约定，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Added
+
+- docs 收录《Codex 装上飞书任务群》飞书开发者社区发布文 PDF；发布敏感扫描跳过图片/PDF 等二进制文件。
+
 ## [0.4.1] - 2026-10-13
 
 ### Added

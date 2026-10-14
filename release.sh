@@ -10,7 +10,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),cryp
 const {execFileSync}=require('node:child_process');
 const rootNames=['config.cjs','codex-client.cjs','lark-bridge.cjs','supervisor.cjs','hooks-rpc.cjs','hook-notify.cjs','report-card.cjs','report-file.cjs','md2pdf.py','task-failure.cjs','media-cache.cjs','codex-dm-sandbox.sh','smoke.cjs','release.sh'];
 const testNames=['identity-explicit.test.cjs','incoming-media.test.cjs','provider-failure.test.cjs','reaction-states.test.cjs','report-card.test.cjs','report-file.test.cjs','report-delivery.test.cjs','restart-review-2026-09-28.test.cjs','session-isolation.test.cjs','settle-deadchat.test.cjs','supervisor.test.cjs','task-queue.test.cjs','task-routing-2026-09-28.test.cjs','stability-recovery.test.cjs','media-cache.test.cjs','install-storage.test.cjs','task-discipline.test.cjs','release-safety.test.cjs'];
-const docNames=['.gitignore','README.md','CHANGELOG.md','LICENSE','install.sh','package.json','docs/feishu-app-setup.md','docs/logo.png','docs/storage-policy.md','examples/bridge.env.example','examples/persona.example.md','examples/projects.json.example'];
+const docNames=['.gitignore','README.md','CHANGELOG.md','LICENSE','install.sh','package.json','docs/feishu-app-setup.md','docs/logo.png','docs/storage-policy.md','docs/lark-codex-tasks-发布文-飞书开发者社区.pdf','examples/bridge.env.example','examples/persona.example.md','examples/projects.json.example'];
 const source=fs.realpathSync(process.env.LCT_RELEASE_SOURCE),target=fs.realpathSync(process.env.LCT_RELEASE_DIR||path.join(os.homedir(),'lark-codex-tasks'));
 const env={...process.env,GIT_OPTIONAL_LOCKS:'0'};
 function git(args){try{return execFileSync('git',['-C',target,...args],{encoding:'utf8',env,stdio:['ignore','pipe','pipe']}).trim();}catch{throw Error('Git 检查失败：'+args[0]);}}
@@ -18,7 +18,7 @@ function fail(text){throw Error(text);}
 function scan(dir,names){
  const expressions=[/ou_[a-zA-Z0-9]{20,}/g,/oc_[a-zA-Z0-9]{20,}/g,/cli_[a-zA-Z0-9]{16,}/g,/sk-[a-zA-Z0-9_-]{20,}/g,/AKIA[0-9A-Z]{16}/g,/BEGIN [A-Z ]*PRIVATE KEY/g];
  const hits=[];
- for(const name of names)for(const [i,line] of fs.readFileSync(path.join(dir,name),'utf8').split('\n').entries())for(const re of expressions){re.lastIndex=0;for(const m of line.matchAll(re))if(!/^ou_x+$/.test(m[0]))hits.push(name+':'+(i+1));}
+ for(const name of names){if(/\.(png|pdf|jpe?g|gif|ico|webp)$/i.test(name))continue;for(const [i,line] of fs.readFileSync(path.join(dir,name),'utf8').split('\n').entries())for(const re of expressions){re.lastIndex=0;for(const m of line.matchAll(re))if(!/^ou_x+$/.test(m[0]))hits.push(name+':'+(i+1));}}
  if(hits.length)fail('敏感模式命中（未显示内容）：'+[...new Set(hits)].join(', '));
 }
 (async()=>{

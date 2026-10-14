@@ -46,7 +46,7 @@ def inline(text):
     text = strip_emoji(text)
     out = html.escape(text)
     out = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", out)
-    out = re.sub(r"`([^`]+)`", r"<font face='Helvetica'>\1</font>", out)
+    out = re.sub(r"`([^`]+)`", r"<b>\1</b>", out)  # 内联代码不切换字体：Helvetica 无中文字形会出豆腐块
     return out
 
 

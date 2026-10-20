@@ -8,7 +8,7 @@ function fixture(t){
  const state=path.join(root,'.local/state/lark-codex-tasks');
  for(const dir of [state,path.join(root,'.config/lark-codex-tasks'),path.join(root,'workspace/scratch')])fs.mkdirSync(dir,{recursive:true});
  fs.writeFileSync(path.join(root,'.config/lark-codex-tasks/projects.json'),'{}');
- const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner',LCT_REACTIONS:'0'};
+ const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner',LCT_PLATFORM:'linux',LCT_SANDBOX_KIND:'bwrap',LCT_REACTIONS:'0'};
  const calls=[];const ctx=vm.createContext({require:n=>n==='node:os'?{...os,homedir:()=>root}:require(n),__dirname,module:{},process:proc,console:{log(){},error(){}},setTimeout,clearTimeout,setInterval,clearInterval,calls});
  vm.runInContext(fs.readFileSync(path.join(__dirname,'lark-bridge.cjs'),'utf8')+`
  lark=async args=>{calls.push(args);return {ok:true,data:{message_id:'om_fake'}};};

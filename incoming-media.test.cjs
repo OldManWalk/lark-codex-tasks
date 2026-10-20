@@ -15,7 +15,7 @@ function bridge(t,{failDownload}={}){
  fs.mkdirSync(path.join(root,'workspace/a'),{recursive:true});
  fs.mkdirSync(path.join(root,'workspace/scratch'),{recursive:true});
  sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace/a')});
- const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner'};
+ const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner',LCT_PLATFORM:'linux',LCT_SANDBOX_KIND:'bwrap'};
  const calls=[],logs=[],errs=[];
  const context=vm.createContext({
   require:n=>n==='node:os'?{...os,homedir:()=>root}:require(n),
@@ -23,7 +23,12 @@ function bridge(t,{failDownload}={}){
   setTimeout,clearTimeout,setInterval,clearInterval,calls});
  vm.runInContext(fs.readFileSync(path.join(__dirname,'lark-bridge.cjs'),'utf8')+`
  let FAIL_DL=${failDownload?'true':'false'};
+let FAIL_API=false,RAW='{}';
  lark=async(args,t,o)=>{calls.push(args);
+  if(args[0]==='api'&&args[1]==='GET'){
+   if(FAIL_API)throw new Error('lark-cli: network unreachable');
+   return {ok:true,data:{items:[{msg_type:'image',body:{content:RAW}}]}};
+  }
   if(args[1]==='+messages-resources-download'){
    if(FAIL_DL)throw new Error('lark-cli: 404 resource not found');
    const out=args[args.indexOf('--output')+1];
@@ -34,6 +39,7 @@ function bridge(t,{failDownload}={}){
   return {ok:true,data:{message_id:'om_fake',chat_id:'oc_new'}};};
  globalThis.api={handle,respond,supervisor,pump,enqueueItem,groupContext,
   get groups(){return groups;},get queues(){return queues;},get dmChats(){return dmChats;},get seen(){return seen;},get attachments(){return attachments;},setDownloadFailure(value){FAIL_DL=value;},patch:code=>eval(code),
+  setRawContent(value){RAW=value;},setApiFailure(value){FAIL_API=value;},
   enqueue(fn){queue=queue.then(fn);return queue;}};
  `,context);
  return {a:context.api,calls,logs,errs,root,context};
@@ -164,4 +170,39 @@ test('M14: binding removed during download cannot start a stale group task',asyn
  a.patch('globalThis.originalLark=lark;lark=async(...args)=>{if(args[0][1]==="+messages-resources-download")await globalThis.downloadGate;return globalThis.originalLark(...args);};');
  await a.enqueue(()=>a.handle(JSON.stringify(evt('group','oc_slow','image',{image_key:'img_slow'},'om_LOSTBIND'))));delete a.groups.oc_slow;release();
  assert(await until(()=>a.queues.oc_slow.items[0].status==='failed'));assert.equal(runs.length,0);assert(a.queues.oc_slow.paused);assert.match(a.queues.oc_slow.items[0].error,/群绑定已变化/);
+});
+
+// ── 生产形态回归：事件流 content 是预渲染文本（非 JSON）时，回源消息 API 取原始内容 ──
+const renderedEvt=(chat_type,chat_id,message_type,rendered,id)=>({type:'im.message.receive_v1',chat_type,chat_id,content:rendered,message_id:id,sender_id:'owner',sender_type:'user',message_type});
+
+test('M15: image event with pre-rendered content resolves the key via message API',async t=>{
+ const {a,calls}=bridge(t),{runs}=mockCodex(t);bindGroup(a,'oc_gM','aaaa11110000');
+ a.setRawContent(JSON.stringify({image_key:'img_v3_real'}));
+ await a.enqueue(()=>a.handle(JSON.stringify(renderedEvt('group','oc_gM','image','[图片]','om_RENDER1'))));
+ assert(await until(()=>runs.length===1),'回源解析后应完成任务');
+ assert(calls.some(c=>c[0]==='api'&&c[1]==='GET'&&String(c[2]).includes('om_RENDER1')),'应调用消息 API 回源');
+ assert(calls.some(c=>c[1]==='+messages-resources-download'&&c.includes('img_v3_real')),'应用真实 image_key 下载');
+ assert.equal(runs[0].images.length,1);assert(fs.existsSync(runs[0].images[0]));
+});
+
+test('M16: post event with pre-rendered content resolves embedded images from raw content',async t=>{
+ const {a}=bridge(t),{runs}=mockCodex(t);bindGroup(a,'oc_post','aaaa11110000');
+ a.setRawContent(JSON.stringify({zh_cn:{title:'看图',content:[[{tag:'text',text:'两张都要看'},{tag:'img',image_key:'img_pa'},{tag:'img',image_key:'img_pb'}]]}}));
+ await a.enqueue(()=>a.handle(JSON.stringify(renderedEvt('group','oc_post','post','看图 两张都要看 [图片] [图片]','om_RENDER2'))));
+ assert(await until(()=>runs.length===1));assert.equal(runs[0].images.length,2);
+});
+
+test('M17: resolution API failure marks attachment failure and permits redelivery',async t=>{
+ const {a}=bridge(t),{runs}=mockCodex(t);bindGroup(a,'oc_gM','aaaa11110000');
+ a.setApiFailure(true);
+ await a.enqueue(()=>a.handle(JSON.stringify(renderedEvt('group','oc_gM','image','[图片]','om_RENDER3'))));
+ assert(await until(()=>a.queues.oc_gM.items[0].status==='failed'));
+ assert.match(a.queues.oc_gM.items[0].error,/附件接收失败/);assert.equal(runs.length,0);assert(!a.seen.has('om_RENDER3'),'回源失败应允许重投');
+});
+
+test('M18: pure-text post with pre-rendered content resolves to zero attachments and still runs',async t=>{
+ const {a}=bridge(t),{runs}=mockCodex(t);bindGroup(a,'oc_post','aaaa11110000');
+ a.setRawContent(JSON.stringify({zh_cn:{content:[[{tag:'text',text:'纯文字富文本'}]]}}));
+ await a.enqueue(()=>a.handle(JSON.stringify(renderedEvt('group','oc_post','post','纯文字富文本','om_RENDER4'))));
+ assert(await until(()=>runs.length===1));assert.equal(runs[0].images.length,0);assert(runs[0].task.includes('纯文字富文本'));
 });

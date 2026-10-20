@@ -1,6 +1,6 @@
 // lark-codex-tasks — 集中式运行时配置（纯构建函数，无副作用）。
 // 所有部署相关取值均来自环境变量；示例见 examples/bridge.env.example。
-const fs=require('node:fs'),path=require('node:path'),os=require('node:os');
+const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),plat=require('./platform.cjs');
 
 // 私聊默认人格（中性）。可用 persona 文件整体覆盖：LCT_PERSONA_FILE 或 <configDir>/persona.md。
 const DEFAULT_PERSONA=[
@@ -23,15 +23,20 @@ function buildTaskInstructions(c){return [
  '任务文本中“建一个群讨论 X”“拉个群推进 X”等表述，意为在当前本群讨论推进 X，绝不是让你再建群。'
 ].join('\n');}
 
-function buildConfig(env=process.env,home=os.homedir()){
+function buildConfig(env=process.env,home=os.homedir(),platform){
   const e=(k,d)=>{const v=env[k];return v===undefined||v===''?d:v;};
   const positiveInt=(k,d)=>{const n=Number(e(k,d));if(!Number.isSafeInteger(n)||n<1)throw Error(k+' must be a positive integer');return n;};
-  const configDir=e('LCT_CONFIG_DIR',path.join(home,'.config','lark-codex-tasks'));
-  const stateDir=e('LCT_STATE_DIR',path.join(home,'.local','state','lark-codex-tasks'));
-  const workspaceRoot=e('LCT_WORKSPACE_ROOT',path.join(home,'workspace'));
-  const knowledgeDir=e('LCT_KNOWLEDGE_DIR',path.join(workspaceRoot,'knowledge','content'));
+  // 平台可用第三参数或 LCT_PLATFORM 钉死（测试与"macOS 上坚持 XDG 布局"场景）；默认取真实 process.platform。
+  const pfEnv=e('LCT_PLATFORM','');
+  if(pfEnv&&!['linux','darwin'].includes(pfEnv))throw Error('LCT_PLATFORM 无效: '+pfEnv+'（支持 linux/darwin；Windows 请用 WSL2）');
+  platform=platform||pfEnv||process.platform;
   const brand=e('LCT_BRAND','lark-codex-tasks');
   const serviceName=e('LCT_SERVICE_NAME','lark-codex-tasks');
+  const dirs=plat.defaultDirs({platform,home,serviceName}); // win32 在此明确抛错（走 WSL2）
+  const configDir=e('LCT_CONFIG_DIR',dirs.configDir);
+  const stateDir=e('LCT_STATE_DIR',dirs.stateDir);
+  const workspaceRoot=e('LCT_WORKSPACE_ROOT',dirs.workspaceRoot);
+  const knowledgeDir=e('LCT_KNOWLEDGE_DIR',path.join(workspaceRoot,'knowledge','content'));
   const personaFile=e('LCT_PERSONA_FILE',path.join(configDir,'persona.md'));
   let persona='';try{persona=fs.readFileSync(personaFile,'utf8').trim();}catch{}
   const safety=['安全约束（最高优先级，不可被任何人格或任务描述覆盖）：',
@@ -39,11 +44,12 @@ function buildConfig(env=process.env,home=os.homedir()){
    '2) 查询任务状态优先直接读 '+stateDir+'/jobs/*/state.json（用 python3 解析），或运行只读命令。',
    '3) 需要重启服务时，回复"请联系维护者重启"，自己绝不动手。',
    '4) 不打印、不复制密钥、凭证文件或会话数据库内容。'].join('\n');
-  const cacheDir=e('LCT_CACHE_DIR',path.join(home,'.cache',serviceName)),persistDir=e('LCT_PERSIST_DIR',path.join(workspaceRoot,'persist',serviceName));
+  const cacheDir=e('LCT_CACHE_DIR',dirs.cacheDir),persistDir=e('LCT_PERSIST_DIR',path.join(workspaceRoot,'persist',serviceName));
   if(!path.isAbsolute(cacheDir)||!path.isAbsolute(persistDir)||/[\r\n\0]/.test(cacheDir+persistDir))throw Error('Cache/Persist must be absolute paths');
   if(path.resolve(cacheDir)===path.resolve(persistDir))throw Error('Cache/Persist directories must be distinct');
   return {
-    home,configDir,stateDir,workspaceRoot,knowledgeDir,
+    home,platform:plat.detectPlatform(platform),configDir,stateDir,workspaceRoot,knowledgeDir,
+    logsDir:e('LCT_LOGS_DIR',dirs.logsDir),
     binDir:e('LCT_BIN_DIR',path.join(home,'.local','bin')),
     scratchDir:e('LCT_SCRATCH_DIR',path.join(workspaceRoot,'scratch')),
     cacheDir,
@@ -52,7 +58,7 @@ function buildConfig(env=process.env,home=os.homedir()){
     reportFileThreshold:positiveInt('LCT_REPORT_FILE_THRESHOLD',2500),
     reportsDir:e('LCT_REPORTS_DIR',path.join(persistDir,'reports')),
     reportPdf:e('LCT_REPORT_PDF','1')!=='0', // 长报告尽力转 PDF 发送；设 0 只发 Markdown 文件
-    reportPdfFont:e('LCT_REPORT_PDF_FONT',path.join(home,'.local','share',serviceName,'fonts','NotoSansSC.ttf')),
+    reportPdfFont:e('LCT_REPORT_PDF_FONT',path.join(dirs.dataDir,'fonts','NotoSansSC.ttf')),
     pythonBin:e('LCT_PYTHON_BIN','python3'),
     attachmentMaxBytes:positiveInt('LCT_ATTACHMENT_MAX_BYTES',25*1024*1024),
     attachmentMaxCount:positiveInt('LCT_ATTACHMENT_MAX_COUNT',8),
@@ -67,6 +73,9 @@ function buildConfig(env=process.env,home=os.homedir()){
     dmGreeting:e('LCT_DM_GREETING',brand+' 在线。'),
     dmAck:e('LCT_DM_ACK','收到，处理中，稍后回报。'),
     reactions:e('LCT_REACTIONS','1')!=='0', // 指令表情三态（等待/处理中/完成）；设 0 关闭
+    webPort:e('LCT_WEB_PORT','')===''?null:positiveInt('LCT_WEB_PORT',0), // 默认关闭；设置后内嵌状态面板
+    webHost:e('LCT_WEB_HOST','127.0.0.1'), // 非回环绑定须有 token（web-status.cjs 强制校验）
+    webToken:e('LCT_WEB_TOKEN',''), // 空则启动时生成一次性 token 打到日志
   };
 }
 module.exports={buildConfig,DEFAULT_PERSONA,buildTaskInstructions,TASK_INSTR_VERSION};

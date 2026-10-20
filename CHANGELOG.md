@@ -4,9 +4,48 @@
 
 ## [Unreleased]
 
+## [0.6.0-rc.2] - 2026-10-20
+
+此版本为第二个候选版，包含独立管理后台，以及 rc.1 试用中发现的会话展示和任务链修复。跨平台与跨机续接的验证范围见下文。
+
 ### Added
 
-- docs 收录《场景介绍》PDF（两个真实场景与工作流说明）；发布敏感扫描跳过图片/PDF 等二进制文件。
+- 独立 Web 管理进程：机器人停止后后台仍可访问，可查看日志并重新启动机器人。
+- 总览、任务与群、执行队列、消息投递、运行诊断和操作记录六个页面，支持搜索、筛选、详情与操作结果反馈。
+- 后台服务启停/重启、队列暂停/恢复/清理、取消任务、恢复任务群、失败投递重试或关闭；操作前确认影响，并检查状态是否过期。
+- 持久化操作 ID 与结果记录，重复请求去重；管理进程退出后不自动重放结果未知的操作。
+- `lct up/down/status/logs`、`lct web` 管理命令、`lct init` 与 `lct doctor`；支持 systemd、launchd 和进程管理模式。
+- 平台与目录适配层、macOS 私聊沙箱适配、执行实例身份及 local/remote 交接契约校验。
+- `LCT_NODE_LABEL` 指定界面中的设备名称，默认使用系统主机名；内部服务名移至诊断详情。
+- docs 收录《场景介绍》PDF；发布扫描跳过图片/PDF 等二进制文件。
+
+### Fixed
+
+- 管理主列表按 Session 汇总，不再将同一会话每一轮执行显示为独立任务。现役群执行结束后显示“等待下一步”，完整执行历史放在会话详情；现有群不再显示恢复入口。
+- 修复任务链追溯最多 50 轮导致长会话链起点变化的问题；现在追溯完整父链，并检测异常循环。历史活跃群的链判断从任务记录计算，避免读取旧的截断链缓存。
+- 新建非 Git 通用任务使用独立空目录；后续指令继续使用本会话原目录。历史共享目录保持原路径，详情中明确提示，避免迁移破坏已有任务。
+- 发布测试临时目录使用短路径，避免 Unix socket 路径长度限制导致候选测试失败。
+- 事件流提前解析消息 content 后，图片、文件和富文本附件被误报为“附件消息格式无效”的问题。
+- 状态页内联脚本转义及内容安全策略问题导致页面持续“加载中/等待数据”的问题。
+- 同机恢复会话时保留原 cwd/worktree，拒绝不存在目录或已知活跃会话；禁止同一 thread 被多个群任务并发续接。
+- macOS UID 查询、launchd 配置中带空格的路径和环境值、私聊沙箱 CODEX_HOME 隔离问题。
+- PDF 内联代码中的中文字符因切换西文字体显示为方块的问题。
+- 测试使用明确的模拟凭据值，保持敏感扫描和脱敏校验同时有效。
+
+### Changed
+
+- 新后台需显式设置 `LCT_WEB_MODE=managed`；现有部署继续兼容内嵌模式。
+- 管理操作由 bridge 统一执行，通过本机私有 socket 通信；后台不直接改写任务状态。
+- 停止/重启前检查执行、排队、派活和待投递工作；忙时拒绝，防止中断任务。取消任务会暂停后续队列。
+- 机器人离线时展示历史快照，禁止业务写入；任务正文与凭据不进入管理快照。
+
+### Validation and limitations
+
+- 功能候选回归包含会话汇总、超过 200 轮的长链、独立目录与历史目录续接，以及既有私聊、队列、审批、附件和结算行为。
+- 实际浏览器与 Linux 部署验证涵盖登录、状态加载、六个页面、后台停止/启动机器人、操作记录、搜索保留与移动布局；macOS launchd 启停已验证。
+- Windows 仅按 WSL2 方案支持，WSL2 实机尚未验收；macOS 真实飞书接管现有会话仍待验收。
+- 自动跨机接收、群绑定回执和成果回传尚未实现，不应将交接契约校验视为完整跨机续接。
+- 升级前备份 release、配置与服务定义；正常回滚只恢复代码/配置，保留升级后新增的业务状态。
 
 ## [0.4.1] - 2026-10-13
 
@@ -110,7 +149,10 @@
 - **运维工具**：`/status` `/jobs` `/groups` `/logs` `/outbox`（死信核查）/ `/cleanup` `/adopt` `/auditgroups`；交互式 `install.sh init`（systemd user 服务）
 - **测试**：137 项验收测试覆盖会话隔离、队列幂等、重启对账、审批生命周期、死信管理、富文本受理、密钥脱敏、模型故障路径
 
-[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.6.0-rc.2...HEAD
+[0.6.0-rc.2]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.4.1...v0.6.0-rc.2
+[0.4.1]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.4.1
+[0.4.0]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.4.0
 [0.3.0]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.3.0
 [0.2.4]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.4
 [0.2.3]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.2.3

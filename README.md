@@ -450,3 +450,42 @@ MIT © 2026 OldManWalk. Independent implementation inspired by the MIT-licensed 
 任务 worker 可以按用户明确授权处理飞书业务文档、知识库、表格和文件，并交付业务产物；不能另建任务群、修改群成员或操作 bridge 的审批、状态和结算控制。私聊与任务群指令分离。
 
 `release.sh` 默认只扫描候选并预览差异，发布工作树不变。`--apply` 在扫描和候选测试通过后写入显式白名单；`--commit -m "说明"` 提交；`--push` 才推送本次提交，`--tag` 只处理指定且版本匹配的标签。目标有改动、未知跟踪文件、危险链接或远端变化时停止，由维护者核对，不自动删除或覆盖。正则扫描不代替内容审阅。
+
+## 管理后台候选与本机部署
+
+新的管理后台为独立进程，可以在机器人停止后继续查看日志和重新启动。
+候选版本支持服务启停、队列暂停/恢复、任务群恢复、失败投递处理和操作记录。
+“会话与工作群”按 Session 显示一条记录；每条群消息产生一轮执行记录，放在详情的执行历史中。
+现役群本轮结束后显示“等待下一步”，不会把整个会话标成完成。
+新建通用任务有独立空目录；续接与历史任务沿用原目录，避免丢失已有文件。
+现有 Linux 环境默认保持原模式；升级前按 `MANAGEMENT_DESIGN.md` 核对空闲、备份和回滚步骤。
+
+macOS 使用原生 Node + launchd，Windows 使用 WSL2 内的 Linux 运行时。
+新实例可用 `lct init` 创建独立配置，填写机器人和工具配置后运行 `lct doctor`；
+`init` 不复制账号凭据、不启动服务、不覆盖现有配置。
+macOS 的工具可能在 `/opt/homebrew/bin`，请据实际安装位置设置 `LCT_BIN_DIR`、
+`LCT_NODE_BIN`、`LCT_CODEX_PKG`，并准备私聊沙箱自己的 Codex 登录态。
+
+在 `bridge.env` 中设置 `LCT_WEB_MODE=managed`、`LCT_WEB_PORT` 和非空的
+`LCT_WEB_TOKEN`，独立后台才会接管 Web 端口。需要远程访问时按部署环境配置
+`LCT_WEB_HOST` 和反向代理；管理密钥不要提交到 Git。
+`LCT_NODE_LABEL` 是界面显示的设备名称，未设置时使用系统主机名；
+内部服务名只在诊断页展示，不影响设备命名。
+
+```sh
+lct init
+lct doctor
+lct service install
+lct web service install
+lct up
+lct web up
+lct web status
+```
+
+同一飞书应用只启用一个事件消费者。试用本机模式时请用独立应用，避免影响服务器实例。
+Windows 原生不运行此包；请在 WSL2 内安装依赖和配置，使用 WSL 的路径与 Codex 会话。
+WSL2 实机验收仍待完成；Linux 测试通过不能替代 Windows 验收。
+
+同机 `/resume` 保留原会话的工作目录，目录不存在或源会话仍在执行时拒绝接管。
+跨机交接需要任务摘要、固定输入版本和目标能力校验，不能把另一台机器的 thread ID 当作本地会话。
+自动跨机接收及成果回传尚未实现；本版只提供交接契约与校验。

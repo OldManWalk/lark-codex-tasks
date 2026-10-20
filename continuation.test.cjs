@@ -1,0 +1,19 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const {localCwd,validatePlan}=require('./continuation.cjs'),{identity}=require('./runtime-info.cjs');
+function dir(t){const d=fs.mkdtempSync(path.join(os.tmpdir(),'lct-resume-'));t.after(()=>fs.rmSync(d,{recursive:true,force:true}));return d;}
+test('C1: same-machine resume preserves original worktree, refuses missing directories and active source',t=>{const d=dir(t);assert.equal(localCwd({cwd:d,status:{type:'idle'}}),fs.realpathSync(d));assert.throws(()=>localCwd({cwd:d,status:{type:'active'}}),/仍在执行/);assert.throws(()=>localCwd({cwd:d+'-missing'}),/未改用其他/);assert.throws(()=>localCwd({cwd:'C:\\work'}),/原地续接/);});
+test('C2: node identity is stable within an instance and distinct between instances',t=>{const a={stateDir:dir(t),platform:'darwin'},b={stateDir:dir(t),platform:'linux'};assert.equal(identity(a).id,identity(a).id);assert.notEqual(identity(a).id,identity(b).id);});
+test('C3: local handoff cannot use remote thread identity or retain source execution',t=>{const cwd=dir(t),p={version:1,id:'handoff_123456',mode:'local',sourceReleased:true,source:{nodeId:'mac',threadId:'thread-1',cwd},target:{nodeId:'mac'},task:'继续验证'};assert.equal(validatePlan(p,{nodeId:'mac'}).kind,'resume');assert.throws(()=>validatePlan({...p,sourceReleased:false},{nodeId:'mac'}),/交出执行权/);assert.throws(()=>validatePlan({...p,source:{...p.source,nodeId:'linux'}},{nodeId:'mac'}),/同一实例/);});
+test('C4: remote handoff starts a new target thread and keeps source ID only for traceability',t=>{const cwd=dir(t),p={version:1,id:'handoff_123456',mode:'remote',sourceReleased:true,source:{nodeId:'mac',threadId:'original'},target:{nodeId:'n100'},task:'部署',summary:'已完成审查，继续测试',input:{commit:'a'.repeat(40)},requiredCapabilities:['node']};const v=validatePlan(p,{nodeId:'n100',projectDir:cwd});assert.equal(v.kind,'new-thread');assert.equal(v.sourceThreadReference,'original');assert(!('thread' in v));assert.throws(()=>validatePlan({...p,input:null},{nodeId:'n100',projectDir:cwd}),/固定输入/);assert.throws(()=>validatePlan(p,{nodeId:'wrong',projectDir:cwd}),/实例不匹配/);});
+test('C5: resume driver reads stored cwd before thread/resume and turn execution',async t=>{
+ const d=dir(t),other=dir(t),stub=path.join(d,'codex-stub');
+ fs.writeFileSync(stub,'#!'+process.execPath+'\n'+`const r=require('readline').createInterface({input:process.stdin});r.on('line',s=>{const m=JSON.parse(s);if(m.id===undefined)return;let result={};if(m.method==='thread/read')result={thread:{id:'original',cwd:${JSON.stringify(d)},status:{type:'idle'}}};if(m.method==='thread/resume')result={thread:{id:'original',cwd:m.params.cwd}};process.stdout.write(JSON.stringify({id:m.id,result})+'\\n');});`,{mode:0o700});
+ const {CodexClient}=require('./codex-client.cjs'),c=new CodexClient({codex:stub,cwd:other,env:process.env,resumeThreadId:'original',preserveResumeCwd:true,threadParams:{}});t.after(()=>c.dispose());assert.equal(await c.start(),'original');assert.equal(c.cwd,fs.realpathSync(d));assert.equal(c.thread.cwd,fs.realpathSync(d));
+});
+
+test('C6: scratch tasks also refuse concurrent writers to the same stored session',async t=>{
+ const root=dir(t),workspace=path.join(root,'workspace'),scratch=path.join(workspace,'scratch'),config=path.join(root,'projects.json');fs.mkdirSync(scratch,{recursive:true});fs.writeFileSync(config,JSON.stringify({scratch}));
+ const {Supervisor}=require('./supervisor.cjs');const s=new Supervisor({state:path.join(root,'jobs'),root:workspace,config,env:{LCT_PLATFORM:'linux'},send:async()=>{}});
+ s.jobs.set('one',{id:'one',alias:'scratch',status:'running',resume:'same-session'});
+ await assert.rejects(s.start('scratch','继续','oc_g','om_t',{resumeThread:'same-session'}),/不能并发续接/);
+});

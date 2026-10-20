@@ -12,7 +12,7 @@ function fixture(t){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'lct-provider-test-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
  const workspace=path.join(root,'workspace');fs.mkdirSync(workspace);fs.mkdirSync(path.join(workspace,'scratch'));
  const config=path.join(root,'projects.json');atomic(config,{scratch:path.join(workspace,'scratch')});const clients=[],sent=[];
- const s=new Supervisor({state:path.join(root,'jobs'),root:workspace,config,env:{TEST_API_KEY:'test-secret-value'},codex:'codex',send:async(...a)=>sent.push(a),clientFactory:o=>{
+ const s=new Supervisor({state:path.join(root,'jobs'),root:workspace,config,env:{TEST_API_KEY:'test-secret-value',LCT_PLATFORM:'linux'},codex:'codex',send:async(...a)=>sent.push(a),clientFactory:o=>{
   const c={o,child:{kill(){}},async start(){clients.push(this);return 'thread-test';},run(){return new Promise((res,rej)=>{this.resolve=res;this.reject=rej;});}};return c;
  }});return {s,clients,sent};
 }

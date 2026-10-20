@@ -8,8 +8,8 @@ NODE_BIN=${LCT_NODE_BIN:-node}
 exec "$NODE_BIN" - "$@" <<'NODE'
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),crypto=require('node:crypto');
 const {execFileSync}=require('node:child_process');
-const rootNames=['config.cjs','codex-client.cjs','lark-bridge.cjs','supervisor.cjs','hooks-rpc.cjs','hook-notify.cjs','report-card.cjs','report-file.cjs','md2pdf.py','task-failure.cjs','media-cache.cjs','codex-dm-sandbox.sh','smoke.cjs','release.sh'];
-const testNames=['identity-explicit.test.cjs','incoming-media.test.cjs','provider-failure.test.cjs','reaction-states.test.cjs','report-card.test.cjs','report-file.test.cjs','report-delivery.test.cjs','restart-review-2026-09-28.test.cjs','session-isolation.test.cjs','settle-deadchat.test.cjs','supervisor.test.cjs','task-queue.test.cjs','task-routing-2026-09-28.test.cjs','stability-recovery.test.cjs','media-cache.test.cjs','install-storage.test.cjs','task-discipline.test.cjs','release-safety.test.cjs'];
+const rootNames=['MANAGEMENT_DESIGN.md','config.cjs','codex-client.cjs','lark-bridge.cjs','supervisor.cjs','hooks-rpc.cjs','hook-notify.cjs','report-card.cjs','report-file.cjs','md2pdf.py','task-failure.cjs','media-cache.cjs','codex-dm-sandbox.sh','codex-dm-sandbox-darwin.sh','dm-sandbox.cjs','web-status.cjs','web-ui.html','web-manager.cjs','management.cjs','control-channel.cjs','runtime-info.cjs','service-launcher.cjs','continuation.cjs','smoke.cjs','release.sh','platform.cjs','lct.cjs'];
+const testNames=['identity-explicit.test.cjs','incoming-media.test.cjs','provider-failure.test.cjs','reaction-states.test.cjs','report-card.test.cjs','report-file.test.cjs','report-delivery.test.cjs','restart-review-2026-09-28.test.cjs','session-isolation.test.cjs','settle-deadchat.test.cjs','supervisor.test.cjs','task-queue.test.cjs','task-routing-2026-09-28.test.cjs','stability-recovery.test.cjs','media-cache.test.cjs','install-storage.test.cjs','task-discipline.test.cjs','release-safety.test.cjs','platform-config.test.cjs','lct-cli.test.cjs','darwin-sandbox.test.cjs','web-status.test.cjs','management.test.cjs','continuation.test.cjs'];
 const docNames=['.gitignore','README.md','CHANGELOG.md','LICENSE','install.sh','package.json','docs/feishu-app-setup.md','docs/logo.png','docs/storage-policy.md','docs/场景介绍.pdf','examples/bridge.env.example','examples/persona.example.md','examples/projects.json.example'];
 const source=fs.realpathSync(process.env.LCT_RELEASE_SOURCE),target=fs.realpathSync(process.env.LCT_RELEASE_DIR||path.join(os.homedir(),'lark-codex-tasks'));
 const env={...process.env,GIT_OPTIONAL_LOCKS:'0'};
@@ -22,7 +22,7 @@ function scan(dir,names){
  if(hits.length)fail('敏感模式命中（未显示内容）：'+[...new Set(hits)].join(', '));
 }
 (async()=>{
- let stage;
+ let stage,testTmp;
  try{
   let apply=false,commit=false,push=false,tag='',message='';const args=process.argv.slice(2);
   for(let i=0;i<args.length;i++)switch(args[i]){
@@ -66,7 +66,7 @@ function scan(dir,names){
   const changes=names.filter(n=>!fs.existsSync(path.join(target,n))||!fs.readFileSync(path.join(stage,n)).equals(fs.readFileSync(path.join(target,n))));
   console.log(JSON.stringify({mode:apply?'apply':'preview',changedFiles:changes,unmanagedTrackedFiles:unknown,scan:'passed'}));
   if(!apply){console.log('只预览，发布工作树与 Git 历史未修改。');return;}
-  const testTmp=path.join(stage,'.test-tmp');fs.mkdirSync(testTmp,{mode:0o700});
+  testTmp=fs.mkdtempSync(path.join(os.tmpdir(),'lct-test-')); // Keep Unix socket fixture paths below the OS length limit.
   const testEnv={...process.env,TMPDIR:testTmp};delete testEnv.NODE_TEST_CONTEXT;
   try{const output=execFileSync(process.execPath,['--test','--test-reporter=tap',...testNames],{cwd:stage,env:testEnv,encoding:'utf8',stdio:['ignore','pipe','pipe'],maxBuffer:16*1024*1024});if(!/^# tests [1-9]\d*$/m.test(output)||!/^# pass [1-9]\d*$/m.test(output))fail('候选测试没有实际执行');}
   catch{fail('候选测试失败，发布仓未修改；请在开发环境查看测试详情。');}
@@ -83,6 +83,6 @@ function scan(dir,names){
   if(push){git(['push','origin','HEAD:refs/heads/'+branch]);if(tag)git(['push','origin','refs/tags/'+tag]);console.log('已推送本次提交及指定标签。');}
   else console.log('已提交，未推送。');
  }catch(e){console.error('发布停止：'+e.message);process.exitCode=1;}
- finally{if(stage)fs.rmSync(stage,{recursive:true,force:true});}
+ finally{if(testTmp)fs.rmSync(testTmp,{recursive:true,force:true});if(stage)fs.rmSync(stage,{recursive:true,force:true});}
 })();
 NODE

@@ -14,7 +14,7 @@ function bridge(t,{deleteCode,sendCode}={}){
  const kb=path.join(root,'workspace/knowledge/content');fs.mkdirSync(kb,{recursive:true});
  execFileSync('git',['init','-q',kb]); // 归档目录需要是 git 仓库
  sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace/a')});
- const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner'};
+ const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner',LCT_PLATFORM:'linux',LCT_SANDBOX_KIND:'bwrap'};
  const calls=[],logs=[],errs=[];
  const context=vm.createContext({
   require:n=>n==='node:os'?{...os,homedir:()=>root}:require(n),

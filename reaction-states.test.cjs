@@ -16,7 +16,7 @@ function bridge(t,{seed,env,failReact}={}){
  fs.mkdirSync(path.join(root,'workspace/scratch'),{recursive:true});
  sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace/a')});
  if(seed)for(const [rel,data] of Object.entries(seed)){const f=path.join(state,rel);fs.mkdirSync(path.dirname(f),{recursive:true});fs.writeFileSync(f,typeof data==='string'?data:JSON.stringify(data));}
- const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner',...(env||{})};
+ const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner',LCT_PLATFORM:'linux',LCT_SANDBOX_KIND:'bwrap',...(env||{})};
  const calls=[],logs=[],errs=[];
  const context=vm.createContext({
   require:n=>n==='node:os'?{...os,homedir:()=>root}:require(n),

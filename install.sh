@@ -9,6 +9,13 @@
 set -eu
 
 PKG_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# macOS 使用平台化 CLI；保留 Linux 原安装流程。
+if [ "$(uname -s)" = Darwin ] && [ "${LCT_PLATFORM:-darwin}" != linux ]; then
+  case "${1:-help}" in
+    init|status|logs) exec node "$PKG_DIR/lct.cjs" "$@" ;;
+    *) echo "macOS 请使用 lct init / doctor / service install / up / down / web；运行文件由包管理器更新。"; exit 0 ;;
+  esac
+fi
 PREFIX=${LCT_PREFIX:-"$HOME/.local/share/lark-codex-tasks"}
 CONFIG_DIR=${LCT_CONFIG_DIR:-"$HOME/.config/lark-codex-tasks"}
 STATE_DIR=${LCT_STATE_DIR:-"$HOME/.local/state/lark-codex-tasks"}
@@ -36,6 +43,8 @@ install_runtime(){
   mkdir -p "$PREFIX"
   if [ "$PKG_DIR" != "$PREFIX" ]; then
     cp "$PKG_DIR"/*.cjs "$PREFIX"/
+    cp "$PKG_DIR"/web-ui.html "$PREFIX"/
+    cp "$PKG_DIR"/codex-dm-sandbox-darwin.sh "$PREFIX"/
     cp "$PKG_DIR"/codex-dm-sandbox.sh "$PREFIX"/
     cp "$PKG_DIR"/md2pdf.py "$PREFIX"/
   fi

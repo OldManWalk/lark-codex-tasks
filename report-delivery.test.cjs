@@ -14,7 +14,7 @@ function bridge(t,{env}={}){
  fs.mkdirSync(path.join(root,'.config/lark-codex-tasks'),{recursive:true});
  fs.mkdirSync(path.join(root,'workspace/scratch'),{recursive:true});
  sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{scratch:path.join(root,'workspace/scratch')});
- const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner',LCT_REPORT_PDF:'0',...(env||{})};
+ const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner',LCT_PLATFORM:'linux',LCT_SANDBOX_KIND:'bwrap',LCT_REPORT_PDF:'0',...(env||{})};
  const calls=[],logs=[],errs=[];
  const context=vm.createContext({
   __dirname,

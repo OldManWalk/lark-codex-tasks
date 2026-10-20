@@ -14,7 +14,7 @@ const MODES = {
 // 任务群线程的默认通用安全约束（无人格）。调用方可经 options.taskInstructions 覆盖。
 function defaultTaskInstructions(env){return buildTaskInstructions(buildConfig(env||process.env));}
 
-function sanitizeEnv(env){const out={...env};for(const k of Object.keys(out))if(/^LARK_|^FEISHU_/i.test(k))delete out[k];return out;}
+function sanitizeEnv(env){const out={...env};for(const k of Object.keys(out))if(/^LARK_|^FEISHU_|^LCT_WEB_TOKEN$/i.test(k))delete out[k];return out;}
 function atomic(file, value) { fs.mkdirSync(path.dirname(file), {recursive:true,mode:0o700}); fs.writeFileSync(file+'.tmp', JSON.stringify(value,null,2),{mode:0o600}); fs.renameSync(file+'.tmp',file); }
 function redact(value, env=process.env, limit=3500) {
   let s=String(value).replace(/\x1b\[[0-?]*[ -/]*[@-~]/g,'');
@@ -63,7 +63,15 @@ function worktreeFor(dir,root,alias,id,base){
  const workspace=fs.realpathSync(root);
  if(!dir.startsWith(workspace+path.sep))throw Error('项目必须位于 workspace 内。');
  const git=(args)=>execFileSync('git',['-C',dir,...args],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:30000}).trim();
- let repo;try{repo=git(['rev-parse','--show-toplevel']);}catch(e){if(alias==='scratch'||String(e.stderr).includes('not a git repository'))return {cwd:dir};throw Error('无法检查项目 Git 仓库。');}
+ let repo;try{repo=git(['rev-parse','--show-toplevel']);}catch(e){
+  if(alias==='scratch'){
+   if(!/^[a-f0-9]{12}$/.test(id))throw Error('任务目录 ID 无效');
+   const parent=path.join(workspace,'worktrees');fs.mkdirSync(parent,{recursive:true,mode:0o700});
+   if(fs.realpathSync(parent)!==parent)throw Error('任务目录不允许是符号链接。');
+   const cwd=path.join(parent,'scratch-'+id);fs.mkdirSync(cwd,{mode:0o700});return {cwd};
+  }
+  if(String(e.stderr).includes('not a git repository'))return {cwd:dir};throw Error('无法检查项目 Git 仓库。');
+ }
  repo=fs.realpathSync(repo);if(!repo.startsWith(workspace+path.sep))throw Error('项目仓库必须位于 workspace 内。');
  if(git(['status','--porcelain','--untracked-files=normal']))throw Error('主仓库有未提交更改；请先提交或同步再派活。');
  let commit;
@@ -99,12 +107,13 @@ class Supervisor {
  }
  get children(){return this.clients;}
  save(j){atomic(path.join(this.state,j.id,'state.json'),j);}
- chainId(job){let cur=job,guard=0;while(cur&&cur.continuedFrom&&guard++<50){const nxt=this.jobs.get(cur.continuedFrom);if(!nxt)break;cur=nxt;}return cur?cur.id:null;}
+ chainId(job){let cur=job;const visited=new Set();while(cur&&cur.continuedFrom){if(visited.has(cur.id))throw Error('任务续接链存在循环，需核查状态');visited.add(cur.id);const nxt=this.jobs.get(cur.continuedFrom);if(!nxt)break;cur=nxt;}return cur?cur.id:null;}
  list(){return [...this.jobs.values()].sort((a,b)=>b.started-a.started).slice(0,15).map(j=>`${j.id} ${j.alias} ${j.status}${j.mode&&j.mode!=='auto'?'('+j.mode+')':''} (${Math.round(((j.finished||Date.now())-j.started)/1000)}s)${j.branch?'\n  '+j.branch+' '+j.worktree:''}`).join('\n')||'暂无任务。';}
  tail(id){const j=this.jobs.get(id);if(!j)throw Error('未知任务。');const file=path.join(this.state,id,'output.log');if(!fs.existsSync(file))return '暂无输出。';const fd=fs.openSync(file,'r');try{const size=fs.fstatSync(fd).size,b=Buffer.alloc(Math.min(size,16000));fs.readSync(fd,b,0,b.length,Math.max(0,size-b.length));return redact(b.toString(),this.env);}finally{fs.closeSync(fd);}}
  appendLog(id,s){const file=path.join(this.state,id,'output.log');fs.appendFileSync(file,redact(s,this.env)+'\n',{mode:0o600});}
  async start(alias,task,chat,message,opts={}){
  if(this.stopping)throw Error('Bridge 正在停止。');if(this.clients.size>=2)throw Error('已有 2 个任务在运行，请稍后再派。');
+ if(opts.resumeThread&&[...this.jobs.values()].some(j=>['running','cancelling'].includes(j.status)&&(j.threadId===opts.resumeThread||j.resume===opts.resumeThread)))throw Error('同一会话已有运行中的任务，不能并发续接');
  if(opts.resumeThread&&this.isDmThread&&this.isDmThread(opts.resumeThread))throw Error('目标会话属于私聊线程，禁止续接到任务群。');
  const dirs=projects(this.config,this.root);if(!dirs[alias])throw Error('未知或不可用项目: '+alias+'。用 /projects 查看。');
  if(alias!=='scratch'&&[...this.jobs.values()].some(j=>j.alias===alias&&['running','cancelling'].includes(j.status)))throw Error('该项目已有运行中的任务。');
@@ -116,7 +125,7 @@ class Supervisor {
    fs.closeSync(fs.openSync(path.join(dir,'output.log'),'a',0o600));
    const env={...sanitizeEnv(this.env),LCT_JOB_ID:id,LCT_JOB_CHAT_ID:chat};
    const factory=this.clientFactory||(o=>new CodexClient(o));
-   const client=factory({codex:this.codex,cwd:dirs[alias],env,resumeThreadId:opts.resumeThread,
+   const client=factory({codex:this.codex,cwd:dirs[alias],env,resumeThreadId:opts.resumeThread,preserveResumeCwd:true,expectedResumeCwd:opts.resumeCwd,
     threadParams:{name:this.threadPrefix+'-'+id,cwd:dirs[alias],sandbox:MODES[mode].sandbox,approvalPolicy:MODES[mode].approvalPolicy,developerInstructions:this.taskInstructions},
     onApproval:(method,params,respond,ctx)=>this.onApproval?this.onApproval(job,method,params,respond,ctx):respond('decline'),
     onLog:x=>{try{this.appendLog(id,x);}catch{}}});
@@ -124,7 +133,7 @@ class Supervisor {
    try{
      job.threadId=await client.start();
      const envs=(client.thread&&client.thread.environments)||[];
-     job.cwd=(envs[0]&&envs[0].cwd)||dirs[alias];job.worktree=null;job.branch=null;
+     job.cwd=client.cwd||(envs[0]&&envs[0].cwd)||dirs[alias];job.worktree=null;job.branch=null;
      this.save(job);
      client.run(task,{images:job.images||[]}).then(r=>{job.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e=>this._done(id,e));
    }catch(e){this.clients.delete(id);job.status='failed';job.finished=Date.now();job.error=String(e.message||e);job.notifyPending=false;this.save(job);try{client.child&&client.child.kill('SIGKILL');}catch{}throw e;}
@@ -153,6 +162,7 @@ class Supervisor {
  if(j0.threadId&&this.isDmThread&&this.isDmThread(j0.threadId))throw Error('任务线程与私聊会话冲突，已阻断接续。');
  if(j0.alias!=='scratch'&&[...this.jobs.values()].some(j=>j.alias===j0.alias&&j.id!==jobId&&['running','cancelling'].includes(j.status)))throw Error('该项目已有运行中的任务。');
  if(!j0.threadId)throw Error('该任务没有可续接的会话线程。');
+ if([...this.jobs.values()].some(j=>['running','cancelling'].includes(j.status)&&(j.threadId===j0.threadId||j.resume===j0.threadId)))throw Error('同一会话已有运行中的任务，不能并发续接');
  const cwd=j0.cwd||j0.worktree||j0.contentDir;if(!cwd)throw Error('任务工作目录缺失。');
  const id=crypto.randomBytes(6).toString('hex'),dir=path.join(this.state,id);
  const job={id,alias:j0.alias,chat,message,mode:j0.mode||'auto',task,images:opts.images||[],threadId:null,resume:j0.threadId,cwd,worktree:j0.worktree||null,branch:j0.branch||null,started:Date.now(),status:'running',notifyPending:false,retried:false,continuedFrom:jobId};

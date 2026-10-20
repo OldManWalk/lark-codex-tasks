@@ -67,6 +67,10 @@ class CodexClient {
     await this._req('initialize', {clientInfo: this.clientInfo, capabilities: {experimentalApi: true}}, 30000);
     this._send({method: 'initialized', params: {}});
     const tp = this.threadParams || {};
+    if (this.resumeThreadId && this.preserveResumeCwd) {
+      const original = await this._req('thread/read', {threadId:this.resumeThreadId,includeTurns:false}, 30000);
+      this.cwd = require('./continuation.cjs').localCwd(original.thread, {expectedCwd:this.expectedResumeCwd});
+    }
     const t = this.resumeThreadId
       ? await this._req('thread/resume', {threadId: this.resumeThreadId, cwd: this.cwd, sandbox: tp.sandbox, approvalPolicy: tp.approvalPolicy, developerInstructions: tp.developerInstructions || null}, 30000)
       : await this._req('thread/start', tp, 30000);

@@ -20,7 +20,7 @@ function bridge(t,{seed}={}){
  sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace','a')});
  fs.writeFileSync(path.join(root,'.config/lark-codex-tasks','persona.md'),'你是 TESTBOT，测试环境助手。称呼用户为 TESTCOMMANDER。');
  if(seed)for(const [rel,data] of Object.entries(seed)){const f=path.join(state,rel);fs.mkdirSync(path.dirname(f),{recursive:true});fs.writeFileSync(f,typeof data==='string'?data:JSON.stringify(data));}
- const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner'};
+ const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner',LCT_PLATFORM:'linux',LCT_SANDBOX_KIND:'bwrap'};
  const calls=[],logs=[],errs=[];
  const context=vm.createContext({
   __dirname,

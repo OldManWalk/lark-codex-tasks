@@ -20,6 +20,8 @@ python3 -m http.server 8080 --directory _site
 
 ## GitHub Pages
 
+发布的是纯静态网站。GitHub Actions 仅在发布时运行构建器，上传 `_site/` 中的 HTML、CSS、JavaScript、图片和 XML；访问页面不需要 Node.js 服务、数据库、Serverless 函数或后台接口。浏览器内的按钮只做本地演示，不发送审批、撤回或任务请求。机器人运行服务不在网站部署范围内。
+
 仓库 Settings → Pages → Build and deployment 的 Source 选择 **GitHub Actions**。首次启用需要仓库维护者权限；不能仅凭 workflow 文件就宣称网站已上线。
 
 `.github/workflows/pages.yml` 在网站内容、版本或更新日志合入 main 时自动测试、构建并部署。PR 只构建验证，不部署；也可在 Actions 手动运行。仅上传 `_site`，不上传仓库源码、后台页面、配置或运行状态。

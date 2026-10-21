@@ -55,7 +55,7 @@ test('real runChatTurn preserves attempted versus acknowledged submission metada
 
 test('cancelled pre-submission error is not retried',async t=>{
  const {a,ctx}=fixture(t);let runs=0;ctx.run=async()=>{runs++;throw Object.assign(Error('network timeout'),{cancelled:true});};a.patch('runChatTurn=()=>globalThis.run();pump=()=>{};');
- const item=a.enqueueItem('oc_test','dm','hello','om_cancel').item;await a.runDmItem('oc_test',item);assert.equal(runs,1);assert.equal(item.status,'failed');
+ const item=a.enqueueItem('oc_test','dm','hello','om_cancel').item;item.status='active';await a.runDmItem('oc_test',item);assert.equal(runs,1);assert.equal(item.status,'failed');
 });
 
 test('bot removed during notification preserves binding and does not attempt dissolution',async t=>{
@@ -122,12 +122,12 @@ test('reaction persistence failure rolls back the new mark and retains the old o
  const deletes=ctx.calls.filter(args=>args[2]==='delete').map(args=>JSON.parse(args[args.indexOf('--params')+1]).reaction_id);assert.deepEqual(deletes,['rid_new']);
 });
 
-test('qdrop and qclear remove waiting reactions after durable removal, preserving active item',async t=>{
+test('qdrop and qclear clear waiting reactions after durable withdrawal, preserving active item',async t=>{
  const {a,ctx}=fixture(t);const first=a.enqueueItem('oc_test','dm','one','om_one').item,second=a.enqueueItem('oc_test','dm','two','om_two').item,active=a.enqueueItem('oc_test','dm','three','om_active').item;
  first.reactionId='rid_one';second.reactionId='rid_two';active.status='active';active.reactionId='rid_active';
  ctx.fakeLark=async args=>{ctx.calls.push(args);return {ok:true};};a.patch('lark=(...args)=>globalThis.fakeLark(...args);');
  const msg=text=>({chat_type:'p2p',chat_id:'oc_test',content:text,message_type:'text',message_id:'om_cmd'});
- await a.respond(msg('/qdrop 1'));await a.respond(msg('/qclear'));await a.waitReacts();assert.equal(a.queues.oc_test.items.length,1);assert.equal(a.queues.oc_test.items[0],active);
+ await a.respond(msg('/qdrop 1'));await a.respond(msg('/qclear'));await a.waitReacts();assert.equal(a.queues.oc_test.items.length,3);assert.equal(first.status,'withdrawn');assert.equal(second.status,'withdrawn');assert.equal(active.status,'active');
  const deletes=ctx.calls.filter(args=>args[2]==='delete').map(args=>JSON.parse(args[args.indexOf('--params')+1]).reaction_id);assert.deepEqual(deletes,['rid_one','rid_two']);
 });
 
@@ -176,7 +176,7 @@ test('unstructured CLI error text mentioning dissolution is not evidence to remo
 
 test('pausing during safe retry backoff prevents a fresh DM submission',async t=>{
  const {a,ctx}=fixture(t);let runs=0;ctx.fakeTurn=async()=>{runs++;throw Error('network timeout before start');};a.patch('runChatTurn=()=>globalThis.fakeTurn();pump=()=>{};');
- const item=a.enqueueItem('oc_test','dm','hello','om_backoff').item;ctx.setTimeout=(fn,ms)=>{assert.equal(ms,8000);a.queues.oc_test.paused=true;fn();return 0;};await a.runDmItem('oc_test',item);
+ const item=a.enqueueItem('oc_test','dm','hello','om_backoff').item;item.status='active';ctx.setTimeout=(fn,ms)=>{assert.equal(ms,8000);a.queues.oc_test.paused=true;fn();return 0;};await a.runDmItem('oc_test',item);
  assert.equal(runs,1);assert.equal(item.status,'failed');assert.equal(item.error,'已取消');
 });
 
@@ -201,5 +201,5 @@ test('dropped item still clears its old reaction if an in-flight replacement can
  ctx.fakeLark=async args=>{ctx.calls.push(args);if(args[2]==='create')return ctx.createGate;return {ok:true};};a.patch('CFG.reactions=true;lark=(...args)=>globalThis.fakeLark(...args);');
  a.setReact(item,'run');await Promise.resolve();await a.respond({chat_type:'p2p',chat_id:'oc_test',content:'/qclear',message_type:'text',message_id:'om_cmd'});
  a.patch('persistStore=()=>{throw Error("ENOSPC");};');release({ok:true,data:{reaction_id:'rid_new'}});await a.waitReacts();
- const ids=ctx.calls.filter(args=>args[2]==='delete').map(args=>JSON.parse(args[args.indexOf('--params')+1]).reaction_id);assert.deepEqual(ids,['rid_new','rid_old']);assert.equal(a.queues.oc_test.items.length,0);
+ const ids=ctx.calls.filter(args=>args[2]==='delete').map(args=>JSON.parse(args[args.indexOf('--params')+1]).reaction_id);assert.deepEqual(ids,['rid_new','rid_old']);assert.equal(a.queues.oc_test.items.length,1);assert.equal(item.status,'withdrawn');
 });

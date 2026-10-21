@@ -6,7 +6,7 @@
 
 **飞书 ↔ Codex 任务群工作流**——把"常开机的服务器 + 飞书"变成你的任务托管中心：工作交接给服务器继续跑，或只带手机也能派活，审批与监督全程在飞书完成。
 
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Platform](https://img.shields.io/badge/platform-Linux%20%2B%20systemd-lightgrey) ![Runtime](https://img.shields.io/badge/runtime-Node%20%E2%89%A518-green) ![Tests](https://img.shields.io/badge/tests-152%20passed-brightgreen)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Platform](https://img.shields.io/badge/platform-Linux%20%2B%20systemd-lightgrey) ![Runtime](https://img.shields.io/badge/runtime-Node%20%E2%89%A518-green) ![Tests](https://img.shields.io/badge/tests-342%20passed-brightgreen)
 
 > 下班了任务没跑完？交接给服务器，地铁上用飞书审批接着干。
 > 手头只有手机？私聊机器人建个群，小事当场就办了。
@@ -291,6 +291,7 @@ cd lark-codex-tasks
 | `LCT_CODEX_PKG` | | `~/.local/lib/node_modules/@openai/codex` | 沙箱内 codex 包路径 |
 | `LCT_OB_MAX_ATTEMPTS` | | `5` | 出站消息投递重试次数 |
 | `LCT_OB_BACKOFF_MS` | | `2000` | 出站投递退避基数（毫秒） |
+| `LCT_NATIVE_MESSAGE_SYNC` | | `0` | `1` 启用飞书原消息撤回/编辑同步，约每 5 秒巡检 |
 | `LCT_REACTIONS` | | `1` | 指令表情三态（等待/处理中/完成）；`0` 关闭 |
 
 项目工作区注册表：`~/.config/lark-codex-tasks/projects.json`（示例见 [examples/projects.json.example](examples/projects.json.example)）。`scratch` 是内置通用工作区；其余别名指向各项目内容目录（代码项目应在 git 仓库内以启用 worktree 隔离）。
@@ -491,3 +492,60 @@ WSL2 实机验收仍待完成；Linux 测试通过不能替代 Windows 验收。
 同机 `/resume` 保留原会话的工作目录，目录不存在或源会话仍在执行时拒绝接管。
 跨机交接需要任务摘要、固定输入版本和目标能力校验，不能把另一台机器的 thread ID 当作本地会话。
 自动跨机接收及成果回传尚未实现；本版只提供交接契约与校验。
+
+
+### Session 工作台（未发布候选，默认关闭）
+
+配置 LCT_WORKSPACE_ENABLED=1 可启用主文档/公告资源服务；worker 动作还要求 LCT_WEB_MODE=managed。工作台按逻辑任务链绑定，群恢复复用主文档，公告区块按当前群记录。
+
+- 群内 /workspace probe 检查读能力；create 创建或复用主文档；sync 同步已登记区块；reconcile [documentId] 只读核查未知结果。
+- Web 会话详情显示资源 ID、未同步项、权限缺项与操作回执。成功读取不代表成功写入，也不代表用户能打开。
+- worker 若得到 LCT_WORKSPACE_TOOL，可用 Node 执行该路径，从 stdin 传入 {"action":"workspace.sync","summary":"当前计划或交付证据","requestId":"稳定的请求编号"}。不指定 requestId 时工具生成并返回；重试须先核对该编号的实际结果。
+- worker 凭证只作用于本轮的绑定 Session；结束、换绑或重试后失效。该工具不能执行群管理、队列或服务操作。
+- 机器人只更新自己登记的区块；人工改动冲突时保留原文。创建/更新响应未知时不自动重做，需要核查已有资源。
+- 可选 LCT_WORKSPACE_DOC_BASE=https://<实际租户域名>/docx 生成入口；不设置时只返回资源 ID。协作者授权与用户访问仍需实测，不自动调整共享权限。
+
+状态保存在 stateDir/workspace/resources.json，回退时保留该文件及当前业务状态，旧版忽略新增资源记录。软件回退不会删除已经创建的飞书文档或公告区块。真实群消息、worker、文档写入及手机端访问闭环仍待验收，不能把离线测试或 GET 成功作为替代。
+
+
+## 指令撤回与重新编辑（候选）
+
+管理后台的「会话与工作群 → 会话详情」和「执行队列」提供「撤回指令」「重新编辑」。待执行和已结束的记录可分别操作或查看历史；指令正文只在打开操作窗口时读取，不放入轮询快照和管理操作日志。
+
+| 指令阶段 | 撤回 | 重新编辑 |
+| --- | --- | --- |
+| 排队中 | 标记已撤回，不再执行；记录保留 | 保留原位置和附件，修改正文 |
+| 执行中（含等待审批、启动/附件准备阶段） | 先暂停队列，等待当前执行停止确认 | 先停止当前执行，再保存修改稿；核查已有修改后恢复队列 |
+| 等待建群/执行名额 | 不再建群或启动任务 | 保留请求顺序和项目，修改任务正文 |
+| 已开始准备工作群 | 等对应任务出现后，从任务入口撤回 | 等对应任务出现后操作 |
+| 已结束或停止结果未知 | 查看记录，已有副作用保留 | 查看保留的修改稿，核查后另发新指令；不自动重跑 |
+
+群内与私聊可使用确定命令：
+
+```text
+/queue
+/withdraw 3
+/edit 3 修改后的完整指令
+/withdraw current
+/edit current 修改后的完整指令
+/qresume
+```
+
+`current` 仅选择本会话当前执行的指令。等待建群的请求在 `/queue` 中显示 `dispatch-…` 标识，可把该标识放在 `/withdraw` 或 `/edit` 的序号位置。跨会话的派活标识不能在当前会话操作。
+
+正文限 1–4000 字符。排队修改保留位置；执行中的修改确认停止后仍保持队列暂停，使用后台「恢复队列」或 `/qresume` 才继续。停止期间恢复请求会被拒绝；进程停止确认超时保留暂停状态，后台显示错误，任务可重试停止。执行完成与撤回同时发生时，明确报告原指令已完成、撤回未生效，修改稿不执行。
+
+“撤回”不会撤销已经写入的文件、已提交的外部操作或已经发送的消息。停止确认以当前 Codex app-server 子进程退出为准；服务重启或执行状态未知时不宣称已撤回，不自动重放。编辑历史最多保留最近 20 次，终态队列记录沿用原有保留策略。旧版已准备附件的路径会在编辑时保留。
+
+### 直接在飞书原消息上撤回或编辑
+
+在运行环境设置 `LCT_NATIVE_MESSAGE_SYNC=1` 并重启机器人后，可以直接使用飞书原消息菜单：
+
+- 排队中撤回：保留撤回记录，不再执行；编辑则保留排队位置，替换正文及附件。
+- 执行中撤回：请求停止并等待进程退出确认；编辑则先停止旧执行，再自动按最后一次编辑的内容继续。
+- 连续编辑仅保留最新内容，撤回优先；原本由用户手动暂停的队列保持暂停。
+- 已完成的任务不会因为修改旧消息而自动重跑；已产生的文件修改和外部操作不自动撤销。
+
+当前使用已有 bot 身份读取原消息状态，执行前核对、执行中约每 5 秒巡检；不依赖独立撤回/编辑事件，因此有检测延迟。必须能读取对应原消息。查询失败时新任务保留排队等待；运行中的原消息持续 30 秒无法核对则请求停止并暂停核查。正文超长、不支持的编辑或无法确认停止时，不自动执行新稿。
+
+这是主分支候选能力，已在维护者实例部署，尚未包含在 v0.6.0-rc.2 标签中；真实飞书原生操作端到端验收仍待完成。后台/命令入口保持上文的手动恢复行为。本功能独立于默认关闭的 Session 工作台。Linux 回归和浏览器验证不能替代真实飞书与 Mac/WSL2 验收。

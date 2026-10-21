@@ -93,3 +93,19 @@ test('session chain root is stable beyond 200 continuations and cycles are rejec
 test('legacy shared-directory sessions continue in their original cwd',async t=>{
  const {s,clients,workspace}=fixture(t);const cwd=path.join(workspace,'a');fs.writeFileSync(path.join(cwd,'legacy.txt'),'existing');const j={id:'aaaaaaaaaaaa',alias:'a',chat:'oc_legacy',threadId:'thread-legacy',cwd,status:'completed',started:1};s.jobs.set(j.id,j);const id=await s.continueJob(j.id,'continue','oc_legacy','om_next');assert.equal(s.jobs.get(id).cwd,cwd);assert.equal(clients[0].o.resumeThreadId,'thread-legacy');assert.equal(fs.readFileSync(path.join(cwd,'legacy.txt'),'utf8'),'existing');clients[0].resolve({message:'done'});
 });
+
+test('cancel persistence failure restores running state and never interrupts client',async t=>{
+ const {s,clients}=fixture(t);const id=await s.start('a','task','oc_stop_save','om_stop_save');const save=s.save;s.save=()=>{throw Error('disk full');};
+ assert.throws(()=>s.cancel(id),/disk full/);assert.equal(s.jobs.get(id).status,'running');assert.equal(clients[0].cancelled,undefined);s.save=save;clients[0].resolve({message:'ok'});await new Promise(r=>setImmediate(r));
+});
+test('stop confirmation failure keeps cancelling and blocks replacement until a successful explicit retry',async t=>{
+ const {s,clients}=fixture(t);const id=await s.start('a','task','oc_stop_unknown','om_stop_unknown');clients[0].waitForStop=async()=>{throw Error('stop timeout');};
+ s.cancel(id);await new Promise(r=>setImmediate(r));assert.equal(s.jobs.get(id).status,'cancelling');assert.equal(s.clients.size,1);assert.match(s.jobs.get(id).stopError,/stop timeout/);
+ await assert.rejects(s.continueJob(id,'new','oc_stop_unknown','om_new'),/还在运行/);
+ clients[0].waitForStop=async()=>{};s.cancel(id);await new Promise(r=>setImmediate(r));assert.equal(s.jobs.get(id).status,'cancelled');assert.equal(s.jobs.get(id).stopConfirmed,true);
+});
+test('Codex stop confirmation waits for process close instead of finished-turn status',async()=>{
+ const {CodexClient}=require('./codex-client.cjs'),{EventEmitter}=require('node:events');const c=new CodexClient({});c.child=new EventEmitter();c.finished=true;
+ let confirmed=false;const wait=c.waitForStop(1000).then(()=>confirmed=true);await new Promise(r=>setImmediate(r));assert.equal(confirmed,false);c.child.emit('close',0,null);await wait;assert.equal(confirmed,true);
+ const d=new CodexClient({});d.child=new EventEmitter();await assert.rejects(d.waitForStop(5),/停止确认超时/);assert.equal(d.child.listenerCount('close'),0);
+});

@@ -193,6 +193,19 @@ class CodexClient {
     this.killTimer = setTimeout(() => { try { this.child && this.child.kill('SIGKILL'); } catch {} }, 10000); this.killTimer.unref();
   }
 
+  // A cancelled turn is not proof that its app-server has exited. Replacement work waits for close.
+  waitForStop(timeout=15000) {
+    if (!this.child || this.exitInfo) return Promise.resolve();
+    return new Promise((resolve,reject)=>{
+      const child=this.child;
+      const cleanup=()=>{clearTimeout(timer);child.removeListener('close',closed);};
+      const closed=()=>{cleanup();resolve();};
+      const timer=setTimeout(()=>{cleanup();reject(new Error('执行进程停止确认超时，保留暂停状态'));},timeout);
+      child.once('close',closed);
+      if(this.exitInfo)closed();
+    });
+  }
+
   async cancel() {
     this.cancelSource = this.cancelSource || 'user-cancel';
     if (!this.finished) {

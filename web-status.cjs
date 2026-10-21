@@ -9,7 +9,7 @@ function tokenOk(provided,expected){const a=Buffer.from(String(provided||'')),b=
 function auth(req,token){const u=new URL(req.url,'http://localhost'),h=req.headers.authorization||'';return tokenOk(h.startsWith('Bearer ')?h.slice(7):'',token)||tokenOk(u.searchParams.get('token'),token);}
 function page(){return fs.readFileSync(path.join(__dirname,'web-ui.html'),'utf8');}
 function writeOriginOK(req){try{const u=new URL(req.headers.origin);return ['https:','http:'].includes(u.protocol)&&u.host===req.headers.host&&u.origin===req.headers.origin&&!u.username&&!u.password;}catch{return false;}}
-function startWebStatus({port,host='127.0.0.1',token,getState,getLogs,onAction,log=console.error}){
+function startWebStatus({port,host='127.0.0.1',token,getState,getLogs,onAction,onInstruction,log=console.error}){
  if(!Number.isSafeInteger(port)||port<0||port>65535)throw Error('LCT_WEB_PORT 无效');
  if(!/^[0-9a-zA-Z.:\-]+$/.test(host))throw Error('LCT_WEB_HOST 含非法字符');
  const tk=token||crypto.randomBytes(24).toString('base64url');
@@ -27,6 +27,7 @@ function startWebStatus({port,host='127.0.0.1',token,getState,getLogs,onAction,l
     if(!tokenOk(bearer,tk)||!writeOriginOK(req)||req.headers['content-type']?.split(';')[0]!=='application/json'){json(403,{error:'操作来源校验失败，请从管理后台页面操作'});return;}
     json(202,await onAction(await readBody(req)));return;
    }
+   if(u.pathname==='/api/instruction'&&onInstruction){if(!tokenOk((req.headers.authorization||'').replace(/^Bearer /,''),tk)){json(401,{error:'正文读取需要访问密钥'});return;}json(200,await onInstruction({target:u.searchParams.get('target'),...(u.searchParams.has('seq')?{seq:Number(u.searchParams.get('seq'))}:{})}));return;}
    if(u.pathname==='/api/state'){json(200,await getState());return;}
    if(u.pathname==='/api/logs'){json(200,{lines:getLogs?await getLogs():[]});return;}
    if(u.pathname==='/api/events'){

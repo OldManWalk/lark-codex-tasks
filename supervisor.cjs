@@ -14,10 +14,10 @@ const MODES = {
 // 任务群线程的默认通用安全约束（无人格）。调用方可经 options.taskInstructions 覆盖。
 function defaultTaskInstructions(env){return buildTaskInstructions(buildConfig(env||process.env));}
 
-function sanitizeEnv(env){const out={...env};for(const k of Object.keys(out))if(/^LARK_|^FEISHU_|^LCT_WEB_TOKEN$/i.test(k))delete out[k];return out;}
+function sanitizeEnv(env){const out={...env};for(const k of Object.keys(out))if(/^LARK_|^FEISHU_|^LCT_WEB_TOKEN$|^LCT_WORKSPACE_/i.test(k))delete out[k];return out;}
 function atomic(file, value) { fs.mkdirSync(path.dirname(file), {recursive:true,mode:0o700}); fs.writeFileSync(file+'.tmp', JSON.stringify(value,null,2),{mode:0o600}); fs.renameSync(file+'.tmp',file); }
 function redact(value, env=process.env, limit=3500) {
-  let s=String(value).replace(/\x1b\[[0-?]*[ -/]*[@-~]/g,'');
+  let s=String(value).replace(/lctw_[a-f0-9]{64}/g,'[REDACTED]').replace(/\x1b\[[0-?]*[ -/]*[@-~]/g,'');
   for(const [k,v] of Object.entries(env)) if(/KEY|TOKEN|SECRET|PASSWORD/i.test(k)&&v&&v.length>5) s=s.split(v).join('[REDACTED]');
   s=s.replace(/((?:api[_-]?key|token|secret|password)\s*[=:]\s*)[^\s,]+/ig,'$1[REDACTED]').replace(/sk-[A-Za-z0-9_-]{12,}/g,'[REDACTED]');
   return s.length>limit?'[truncated]\n'+s.slice(-limit):s;
@@ -27,6 +27,11 @@ function parse(text) {
  // 非斜杠命令形态（普通正文、绝对路径、斜杠后空格、中文斜杠等）返回 natural 标记，由路由按正文处理；不再用内部异常字符串做分流（R08）
  const m=text.trim().match(/^(\/\w+)(?:\s+([\s\S]*))?$/); if(!m) return {cmd:null,natural:true};
  const cmd=m[1].toLowerCase(), rest=m[2]||'';
+ if(cmd==='/workspace'){
+   const m=rest.match(/^(probe|create|sync|reconcile)(?:\s+([-\w]{1,100}))?$/);
+   if(!m||(m[2]&&m[1]!=='reconcile'))throw Error('用法: /workspace probe|create|sync|reconcile [documentId]');
+   return {cmd,action:m[1],documentId:m[2]};
+ }
  if(cmd==='/run'){const mm=rest.match(/^([a-z][a-z0-9_-]{0,31})\s+([\s\S]+)$/);if(!mm||!mm[2].trim())throw Error('用法: /run <项目> <任务>');return {cmd,alias:mm[1],task:mm[2].trim()};}
  if(cmd==='/group'){if(!rest)return {cmd,alias:'scratch',task:null};const mm=rest.match(/^([a-z][a-z0-9_-]{0,31})(?:\s+([\s\S]+))?$/);if(!mm)throw Error('用法: /group [项目] [任务]');return {cmd,alias:mm[1],task:mm[2]?.trim()||null};}
  if(cmd==='/resume'){const mm=rest.match(/^([a-z][a-z0-9_-]{0,31})\s+(0[0-9a-f]{3}[0-9a-f-]{30,})\s+([\s\S]+)$/);if(!mm)throw Error('用法: /resume <项目> <会话ID> <任务>');return {cmd,alias:mm[1],thread:mm[2],task:mm[3].trim()};}
@@ -35,6 +40,11 @@ function parse(text) {
    if(cmd==='/cancel'&&!rest)return {cmd}; // 裸 /cancel：私聊取消本会话执行中的对话（N02）
    if(!rest||!/^[a-f0-9]{12}$/.test(rest))throw Error('用法: '+cmd+' <任务ID>');return {cmd,id:rest};}
  if(cmd==='/keep'){if(!/^om_[\w-]+-\d+$/.test(rest))throw Error('用法: /keep <附件ID>（/files 查看）');return {cmd,id:rest};}
+ if(cmd==='/withdraw'||cmd==='/edit'){
+   const m=rest.match(/^(current|dispatch-[-\w]{1,80}|#?\d{1,8})(?:\s+([\s\S]+))?$/);
+   if(!m||cmd==='/edit'&&!m[2]?.trim()||cmd==='/withdraw'&&m[2])throw Error('用法: /withdraw <序号|current> 或 /edit <序号|current> <新指令>');
+   return {cmd,selector:m[1]==='current'||m[1].startsWith('dispatch-')?m[1]:Number(m[1].replace('#','')),text:m[2]?.trim()};
+ }
  if(cmd==='/qdrop'){if(!rest||!/^\d{1,4}$/.test(rest))throw Error('用法: /qdrop <排队序号>');return {cmd,seq:parseInt(rest,10)};}
  if(cmd==='/adopt'){const mm=rest.match(/^(oc_[\w-]+)\s+([a-z][a-z0-9_-]{0,31})\s+([\s\S]+)$/);if(!mm||!mm[3].trim())throw Error('用法: /adopt <群ID> <项目> <任务>');return {cmd,chat:mm[1],alias:mm[2],task:mm[3].trim()};}
  if(cmd==='/outbox'){
@@ -123,7 +133,7 @@ class Supervisor {
    const job={id,alias,chat,message,mode,task,images:opts.images||[],resume:opts.resumeThread,started:Date.now(),status:'running',notifyPending:false,retried:false};
    this.jobs.set(id,job);fs.mkdirSync(dir,{recursive:true,mode:0o700});this.save(job);
    fs.closeSync(fs.openSync(path.join(dir,'output.log'),'a',0o600));
-   const env={...sanitizeEnv(this.env),LCT_JOB_ID:id,LCT_JOB_CHAT_ID:chat};
+   const env={...sanitizeEnv(this.env),LCT_JOB_ID:id,LCT_JOB_CHAT_ID:chat,...(this.workspaceEnv?this.workspaceEnv(id,chat):{})};
    const factory=this.clientFactory||(o=>new CodexClient(o));
    const client=factory({codex:this.codex,cwd:dirs[alias],env,resumeThreadId:opts.resumeThread,preserveResumeCwd:true,expectedResumeCwd:opts.resumeCwd,
     threadParams:{name:this.threadPrefix+'-'+id,cwd:dirs[alias],sandbox:MODES[mode].sandbox,approvalPolicy:MODES[mode].approvalPolicy,developerInstructions:this.taskInstructions},
@@ -131,27 +141,27 @@ class Supervisor {
     onLog:x=>{try{this.appendLog(id,x);}catch{}}});
    this.clients.set(id,client);
    try{
-     job.threadId=await client.start();
+     job.threadId=await client.start();if(job.status!=='running'||client.disposed){this._done(id,Object.assign(Error('启动期间已取消'),{interrupted:true}));return id;}
      const envs=(client.thread&&client.thread.environments)||[];
      job.cwd=client.cwd||(envs[0]&&envs[0].cwd)||dirs[alias];job.worktree=null;job.branch=null;
      this.save(job);
      client.run(task,{images:job.images||[]}).then(r=>{job.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e=>this._done(id,e));
-   }catch(e){this.clients.delete(id);job.status='failed';job.finished=Date.now();job.error=String(e.message||e);job.notifyPending=false;this.save(job);try{client.child&&client.child.kill('SIGKILL');}catch{}throw e;}
+   }catch(e){if(job.status==='cancelling'||job.status==='cancelled'){this._done(id,Object.assign(e,{interrupted:true}));return id;}this.clients.delete(id);job.status='failed';job.finished=Date.now();job.error=String(e.message||e);job.notifyPending=false;this.save(job);try{client.child&&client.child.kill('SIGKILL');}catch{}throw e;}
    return id;
  }
  const checkout=worktreeFor(dirs[alias],this.root,alias,id,opts.base||null);fs.mkdirSync(dir,{mode:0o700});
  const job={id,alias,chat,message,mode,task,images:opts.images||[],...checkout,started:Date.now(),status:'running',notifyPending:false,retried:false};this.jobs.set(id,job);this.save(job);
  const out=fs.openSync(path.join(dir,'output.log'),'a',0o600);fs.closeSync(out);
- const env={...sanitizeEnv(this.env),LCT_JOB_ID:id,LCT_JOB_CHAT_ID:chat};
+ const env={...sanitizeEnv(this.env),LCT_JOB_ID:id,LCT_JOB_CHAT_ID:chat,...(this.workspaceEnv?this.workspaceEnv(id,chat):{})};
  const factory=this.clientFactory||(o=>new CodexClient(o));
  const client=factory({codex:this.codex,cwd:checkout.cwd,env,threadParams:{name:this.threadPrefix+'-'+id,cwd:checkout.cwd,sandbox:MODES[mode].sandbox,approvalPolicy:MODES[mode].approvalPolicy,developerInstructions:this.taskInstructions},
   onApproval:(method,params,respond,ctx)=>this.onApproval?this.onApproval(job,method,params,respond,ctx):respond('decline'),
   onLog:s=>{try{this.appendLog(id,s);}catch{}}});
  this.clients.set(id,client);
  try{
-   job.threadId=await client.start();this.save(job);
+   job.threadId=await client.start();if(job.status!=='running'||client.disposed){this._done(id,Object.assign(Error('启动期间已取消'),{interrupted:true}));return id;}this.save(job);
    client.run(task,{images:job.images||[]}).then(r=>{job.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e=>this._done(id,e));
- }catch(e){this.clients.delete(id);job.status='failed';job.finished=Date.now();job.error=String(e.message||e);job.notifyPending=false;this.save(job);try{client.child&&client.child.kill('SIGKILL');}catch{}throw e;}
+ }catch(e){if(job.status==='cancelling'||job.status==='cancelled'){this._done(id,Object.assign(e,{interrupted:true}));return id;}this.clients.delete(id);job.status='failed';job.finished=Date.now();job.error=String(e.message||e);job.notifyPending=false;this.save(job);try{client.child&&client.child.kill('SIGKILL');}catch{}throw e;}
  return id;
  }
  async continueJob(jobId,task,chat,message,opts={}){
@@ -161,37 +171,37 @@ class Supervisor {
  if(j0.chat&&chat&&j0.chat!==chat)throw Error('任务绑定群与当前群不一致，已阻断接续。可私聊 /reopen '+jobId+' 重建绑定。');
  if(j0.threadId&&this.isDmThread&&this.isDmThread(j0.threadId))throw Error('任务线程与私聊会话冲突，已阻断接续。');
  if(j0.alias!=='scratch'&&[...this.jobs.values()].some(j=>j.alias===j0.alias&&j.id!==jobId&&['running','cancelling'].includes(j.status)))throw Error('该项目已有运行中的任务。');
- if(!j0.threadId)throw Error('该任务没有可续接的会话线程。');
- if([...this.jobs.values()].some(j=>['running','cancelling'].includes(j.status)&&(j.threadId===j0.threadId||j.resume===j0.threadId)))throw Error('同一会话已有运行中的任务，不能并发续接');
+ if(!j0.threadId&&!(j0.status==='cancelled'&&j0.stopConfirmed&&!j0.turnSubmissionAttempted))throw Error('该任务没有可续接的会话线程。');
+ if(j0.threadId&&[...this.jobs.values()].some(j=>['running','cancelling'].includes(j.status)&&(j.threadId===j0.threadId||j.resume===j0.threadId)))throw Error('同一会话已有运行中的任务，不能并发续接');
  const cwd=j0.cwd||j0.worktree||j0.contentDir;if(!cwd)throw Error('任务工作目录缺失。');
  const id=crypto.randomBytes(6).toString('hex'),dir=path.join(this.state,id);
  const job={id,alias:j0.alias,chat,message,mode:j0.mode||'auto',task,images:opts.images||[],threadId:null,resume:j0.threadId,cwd,worktree:j0.worktree||null,branch:j0.branch||null,started:Date.now(),status:'running',notifyPending:false,retried:false,continuedFrom:jobId};
  this.jobs.set(id,job);fs.mkdirSync(dir,{recursive:true,mode:0o700});this.save(job);
  fs.closeSync(fs.openSync(path.join(dir,'output.log'),'a',0o600));
- const env={...sanitizeEnv(this.env),LCT_JOB_ID:id,LCT_JOB_CHAT_ID:chat};
+ const env={...sanitizeEnv(this.env),LCT_JOB_ID:id,LCT_JOB_CHAT_ID:chat,...(this.workspaceEnv?this.workspaceEnv(id,chat):{})};
  const factory=this.clientFactory||(o=>new CodexClient(o));
  const client=factory({codex:this.codex,cwd,env,resumeThreadId:j0.threadId,
   threadParams:{name:this.threadPrefix+'-'+id,cwd,sandbox:MODES[job.mode].sandbox,approvalPolicy:MODES[job.mode].approvalPolicy,developerInstructions:this.taskInstructions},
   onApproval:(method,params,respond,ctx)=>this.onApproval?this.onApproval(job,method,params,respond,ctx):respond('decline'),
   onLog:x=>{try{this.appendLog(id,x);}catch{}}});
- this.clients.set(id,client);
+ client.workspaceContext=opts.workspaceContext||'';this.clients.set(id,client);
  try{
-   job.threadId=await client.start();this.save(job);
-   client.run(task,{images:job.images||[]}).then(r=>{job.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e=>this._done(id,e));
- }catch(e){this.clients.delete(id);job.status='failed';job.finished=Date.now();job.error=String(e.message||e);job.notifyPending=false;this.save(job);try{client.child&&client.child.kill('SIGKILL');}catch{}throw e;}
+   job.threadId=await client.start();if(job.status!=='running'||client.disposed){this._done(id,Object.assign(Error('启动期间已取消'),{interrupted:true}));return id;}this.save(job);
+   client.run(task+(opts.workspaceContext||''),{images:job.images||[]}).then(r=>{job.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e=>this._done(id,e));
+ }catch(e){if(job.status==='cancelling'||job.status==='cancelled'){this._done(id,Object.assign(e,{interrupted:true}));return id;}this.clients.delete(id);job.status='failed';job.finished=Date.now();job.error=String(e.message||e);job.notifyPending=false;this.save(job);try{client.child&&client.child.kill('SIGKILL');}catch{}throw e;}
  return id;
  }
- _done(id,error){const client=this.clients.get(id),j=this.jobs.get(id);if(!j)return;
+ _done(id,error){const client=this.clients.get(id),j=this.jobs.get(id);if(!j||!['running','cancelling'].includes(j.status))return;if(j.status==='cancelling'&&!j.stopConfirmed)return;
  if(client&&!this._isRetrying(error,j)){client.cancelSource=client.cancelSource||'job-finished';try{client.child.kill('SIGTERM');}catch{}}
  if(error&&j.status==='running'&&!j.retried&&client&&!client.turnSubmitted&&!client.turnSubmissionAttempted&&/network|reconnect|timeout|stream|econn|eai_again/i.test(String(error.message||error))){
    try{client&&client.child.kill('SIGTERM');}catch{}
    j.retried=true;this.save(j);console.error('[bridge] transient failure, retrying job '+id+': '+error.message);
    const factory=this.clientFactory||(o=>new CodexClient(o));
-   const c2=factory({codex:this.codex,cwd:j.cwd||j.worktree,env:{...sanitizeEnv(this.env),LCT_JOB_ID:id,LCT_JOB_CHAT_ID:j.chat},resumeThreadId:j.threadId||undefined,threadParams:{name:this.threadPrefix+'-'+id+'-r2',cwd:j.cwd||j.worktree,sandbox:MODES[j.mode].sandbox,approvalPolicy:MODES[j.mode].approvalPolicy,developerInstructions:this.taskInstructions},
+   const c2=factory({codex:this.codex,cwd:j.cwd||j.worktree,env:{...sanitizeEnv(this.env),LCT_JOB_ID:id,LCT_JOB_CHAT_ID:j.chat,...(this.workspaceEnv?this.workspaceEnv(id,j.chat):{})},resumeThreadId:j.threadId||undefined,threadParams:{name:this.threadPrefix+'-'+id+'-r2',cwd:j.cwd||j.worktree,sandbox:MODES[j.mode].sandbox,approvalPolicy:MODES[j.mode].approvalPolicy,developerInstructions:this.taskInstructions},
     onApproval:(method,params,respond,ctx)=>this.onApproval?this.onApproval(j,method,params,respond,ctx):respond('decline'),
     onLog:x=>{try{this.appendLog(id,'[retry] '+x);}catch{}}});
-   this.clients.set(id,c2);
-   c2.start().then(threadId=>{j.threadId=threadId;this.save(j);return c2.run(j.task,{images:j.images||[]});}).then(r=>{j.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e2=>this._done(id,e2));
+   c2.workspaceContext=client.workspaceContext||'';this.clients.set(id,c2);
+   c2.start().then(threadId=>{if(j.status!=='running'||c2.disposed)throw Object.assign(Error('重试启动期间已取消'),{interrupted:true});j.threadId=threadId;this.save(j);return c2.run(j.task+c2.workspaceContext,{images:j.images||[]});}).then(r=>{j.lastMessage=redact(r&&r.message||'',this.env,Number.MAX_SAFE_INTEGER);this._done(id,null);},e2=>this._done(id,e2));
    return;}
  if(this.terminalPending&&this.terminalPending.has(id))return;
  if(error){
@@ -204,7 +214,7 @@ class Supervisor {
    if(error.codexErrorInfo!==undefined)j.codexErrorInfo=error.codexErrorInfo;
    if(client&&client.lastMessage)j.lastMessage=redact(client.lastMessage,this.env,Number.MAX_SAFE_INTEGER);
  }
- const terminal={...j,status:j.status==='cancelling'?'cancelled':(error&&error.interrupted)?'cancelled':error?'failed':'completed',exit:error?1:0,finished:Date.now(),error:error?redact(String(error.message||error),this.env,600):null,notifyPending:true};
+ const terminal={...j,threadId:j.threadId||(j.status==='cancelling'?j.resume:null)||null,status:j.status==='cancelling'?'cancelled':(error&&error.interrupted)?'cancelled':error?'failed':'completed',exit:error?1:0,finished:Date.now(),error:error?redact(String(error.message||error),this.env,600):null,notifyPending:true};
  (this.terminalPending||(this.terminalPending=new Map())).set(id,terminal);
  this._commitTerminal(id);}
  _commitTerminal(id){const terminal=this.terminalPending&&this.terminalPending.get(id);if(!terminal)return;
@@ -212,7 +222,19 @@ class Supervisor {
  this.terminalPending.delete(id);const job=this.jobs.get(id);Object.assign(job,terminal);this.clients.delete(id);
  this.flush().catch(()=>{});if(this.onSettled)try{this.onSettled(job);}catch(e){console.error('[bridge] onSettled failed:',e&&e.message);}}
  _isRetrying(error,j){const client=this.clients.get(j.id);return !!(error&&j.status==='running'&&!j.retried&&client&&!client.turnSubmitted&&!client.turnSubmissionAttempted&&/network|reconnect|timeout|stream|econn|eai_again/i.test(String(error.message||error)));}
- cancel(id){if(this.terminalPending?.has(id))throw Error('任务已结束，终态正在等待存储恢复，不能再取消。');const client=this.clients.get(id),j=this.jobs.get(id);if(!client||!j)throw Error('没有该 ID 的运行中任务。');j.status='cancelling';this.save(j);client.cancel().catch(()=>{});return `正在取消 ${id}`;}
+ cancel(id){
+  if(this.terminalPending?.has(id))throw Error('任务已结束，终态正在等待存储恢复，不能再取消。');
+  const client=this.clients.get(id),j=this.jobs.get(id);
+  if(!client||!j||!['running','cancelling'].includes(j.status))throw Error('没有该 ID 的运行中任务。');
+  if(j.status==='cancelling'&&!j.stopError)return `正在取消 ${id}`;
+  if(client.finished&&j.status!=='cancelling')throw Error('执行已结束，不能再取消。请等待终态保存');
+  const before={status:j.status,stopConfirmed:j.stopConfirmed,stopError:j.stopError};j.status='cancelling';j.stopConfirmed=false;delete j.stopError;
+  try{this.save(j);}catch(e){Object.assign(j,before);throw e;}
+  Promise.resolve().then(()=>client.cancel()).then(()=>client.waitForStop?.()).then(()=>{
+    j.stopConfirmed=true;this._done(id,Object.assign(Error('用户请求停止，执行进程已退出'),{interrupted:true}));
+  },e=>{j.stopError=redact(String(e.message||e),this.env,300);try{this.save(j);}catch{}console.error('[bridge] stop confirmation failed for '+id);});
+  return `正在取消 ${id}`;
+ }
  async flush(){if(this.flushing)return;this.flushing=true;try{for(const j of this.jobs.values()){if(!j.notifyPending)continue;try{await this.send(j.chat,this._report(j),'job-'+j.id,j);j.notifyPending=false;this.save(j);}catch(e){console.error('[bridge] notification pending for '+j.id+': '+String(e&&e.message||e).slice(0,200));}}}finally{this.flushing=false;}}
  _report(j){const msg=(j.lastMessage||'').trim();const icon=j.status==='completed'?'✅':j.status==='cancelled'?'🛑':'⚠️';const st=j.status==='completed'?'完成':j.status==='cancelled'?'已取消':j.status==='interrupted'?'被中断':'失败';return `${icon} 任务${st} · ${j.alias} · ${j.id.slice(0,6)} · ${j.mode||'auto'}\n${j.error?'错误: '+j.error+'\n':''}${failureHint(j)?'\n'+failureHint(j)+'\n':''}${msg?'\n结论: '+msg+'\n':''}\n分支: ${j.branch||'-'}${j.threadId?'\n接管: codex resume '+j.threadId+'\n':''}回复 /done 结算归档并解散本群`;}
  stop(){this.stopping=true;for(const id of this.clients.keys()){const c=this.clients.get(id);if(c)c.cancelSource=c.cancelSource||'service-stop';try{this.cancel(id);}catch{}}}

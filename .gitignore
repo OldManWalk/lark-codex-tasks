@@ -2,3 +2,7 @@
 .DS_Store
 node_modules/
 *.lcttmp
+
+# Generated site and local validation
+_site/
+/validation/

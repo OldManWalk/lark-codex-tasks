@@ -6,7 +6,7 @@ function fixture(t){
  const src=path.join(root,'source'),dst=path.join(root,'target'),tmp=path.join(root,'tmp');for(const p of [src,dst,tmp])fs.mkdirSync(p);
  for(const name of fs.readdirSync(__dirname).filter(n=>n==='MANAGEMENT_DESIGN.md'||n.endsWith('.cjs')||n.endsWith('.html')||n.endsWith('.sh')||n==='md2pdf.py'))fs.copyFileSync(path.join(__dirname,name),path.join(src,name));
  if(fs.existsSync(path.join(__dirname,'release')))fs.cpSync(path.join(__dirname,'release'),path.join(src,'release'),{recursive:true});
- else for(const name of ['.gitignore','README.md','CHANGELOG.md','LICENSE','install.sh','package.json','docs','examples'])fs.cpSync(path.join(__dirname,name),path.join(src,name),{recursive:true});
+ else for(const name of ['.gitignore','README.md','CHANGELOG.md','LICENSE','install.sh','package.json','docs','examples','site','.github'])fs.cpSync(path.join(__dirname,name),path.join(src,name),{recursive:true});
  for(const name of fs.readdirSync(src).filter(n=>n.endsWith('.test.cjs')))fs.writeFileSync(path.join(src,name),'const {test}=require("node:test");test("fixture gate",()=>{});\n');
  git(dst,['init','-q','-b','main']);git(dst,['config','user.name','Fixture']);git(dst,['config','user.email','fixture@example.invalid']);fs.writeFileSync(path.join(dst,'README.md'),'old readme');git(dst,['add','README.md']);git(dst,['commit','-qm','initial']);
  const doc=n=>path.join(src,fs.existsSync(path.join(src,'release'))?'release':'',n);
@@ -27,7 +27,7 @@ test('candidate test failure prevents release modifications',t=>{
  const f=fixture(t);fs.writeFileSync(path.join(f.src,'identity-explicit.test.cjs'),'throw Error("fixture failure");');const result=f.run(['--apply']);assert.notEqual(result.status,0);assert.match(result.stderr,/候选测试失败/);untouched(f);assert.equal(git(f.dst,['status','--porcelain']),'');
 });
 test('apply and commit touch only explicit public files without pushing',t=>{
- const f=fixture(t);const result=f.run(['--commit','-m','fixture export']);assert.equal(result.status,0,result.stderr);assert.notEqual(git(f.dst,['rev-parse','HEAD']),f.head);assert.equal(git(f.dst,['status','--porcelain']),'');assert(fs.existsSync(path.join(f.dst,'media-cache.cjs')));assert(fs.existsSync(path.join(f.dst,'docs/storage-policy.md')));assert(!fs.existsSync(path.join(f.dst,'STABILITY_ACCEPTANCE.md')));
+ const f=fixture(t);const result=f.run(['--commit','-m','fixture export']);assert.equal(result.status,0,result.stderr);assert.notEqual(git(f.dst,['rev-parse','HEAD']),f.head);assert.equal(git(f.dst,['status','--porcelain']),'');assert(fs.existsSync(path.join(f.dst,'media-cache.cjs')));assert(fs.existsSync(path.join(f.dst,'docs/storage-policy.md')));assert(fs.existsSync(path.join(f.dst,'site/assets/social.png')));assert(fs.existsSync(path.join(f.dst,'.github/workflows/pages.yml')));assert(!fs.existsSync(path.join(f.dst,'STABILITY_ACCEPTANCE.md')));
 });
 test('target symlink cannot overwrite files outside the release repository',t=>{
  const f=fixture(t),outside=path.join(f.root,'outside');fs.writeFileSync(outside,'protected');fs.symlinkSync(outside,path.join(f.dst,'config.cjs'));git(f.dst,['add','config.cjs']);git(f.dst,['commit','-qm','fixture symlink']);const result=f.run(['--apply']);assert.notEqual(result.status,0);assert.match(result.stderr,/不安全路径/);assert.equal(fs.readFileSync(outside,'utf8'),'protected');

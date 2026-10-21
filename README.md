@@ -11,6 +11,8 @@
 > 下班了任务没跑完？交接给服务器，地铁上用飞书审批接着干。
 > 手头只有手机？私聊机器人建个群，小事当场就办了。
 
+项目官网：[LarkNotify](https://oldmanwalk.github.io/lark-codex-tasks/) · [更新与开发进展](https://oldmanwalk.github.io/lark-codex-tasks/updates/) · [网站维护说明](site/README.md)
+
 ## 目录
 
 - [这是什么——60 秒版](#这是什么60-秒版)

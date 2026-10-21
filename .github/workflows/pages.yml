@@ -1,0 +1,42 @@
+name: Project site
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', 'site-build.cjs', 'site.test.cjs', 'CHANGELOG.md', 'package.json', '.github/workflows/pages.yml']
+  pull_request:
+    paths: ['site/**', 'site-build.cjs', 'site.test.cjs', 'CHANGELOG.md', 'package.json', '.github/workflows/pages.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check site and build static artifact
+        run: |
+          node --test site.test.cjs
+          node site-build.cjs
+      - name: Upload only the generated public site
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - name: Deploy the public site
+        id: deployment
+        uses: actions/deploy-pages@v5

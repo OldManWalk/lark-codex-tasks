@@ -121,6 +121,21 @@ function downUnlocked(ctx,{waitMs=15000,pollMs=300,log=console.error}={}){
 }
 
 // ─── status / logs / version ───
+function resume(ctx,jobId){
+ if(!/^[a-f0-9]{12}$/.test(jobId||''))throw Error('用法: lct resume <任务ID> [--json]');
+ const file=path.join(ctx.CFG.stateDir,'jobs',jobId,'state.json');
+ let job;try{job=JSON.parse(fs.readFileSync(file,'utf8'));}catch{throw Error('找不到任务记录或 Resume 包: '+jobId);}
+ if(!job.release)throw Error('任务尚未 /release，不能生成 Resume。请先释放群执行附着。');
+ const current=require('./runtime-info.cjs').identity(ctx.CFG);
+ const instruction=require('./session-attachment.cjs').resumeInstruction(job.release,current);
+ return {jobId,release:job.release,...instruction};
+}
+function shellQuote(value){return "'"+String(value).replace(/'/g,"'\\''")+"'";}
+function formatResume(r){
+ if(r.command)return 'cd '+shellQuote(r.command.cwd)+' && '+r.command.args.map(shellQuote).join(' ');
+ if(r.strategy==='remote-result-handoff')return '源 thread 位于 '+r.sourceNode.label+' ('+r.sourceNode.role+')，当前节点是 '+r.currentNode.label+' ('+r.currentNode.role+')。不能直接跨机 resume；请先完成成果回收和本地上下文恢复。';
+ return 'Resume 信息不完整，请先核查原工作目录，未生成可能错误的命令。';
+}
 function status(ctx){
   const m=manager(ctx);
   const out={manager:m,service:ctx.service,platform:ctx.CFG.platform,running:false,pid:null};
@@ -210,6 +225,7 @@ function initConfig(ctx){
  const cfg=ctx.CFG;
  for(const dir of [cfg.configDir,cfg.stateDir,path.join(cfg.stateDir,'dm-codex-home'),cfg.scratchDir])fs.mkdirSync(dir,{recursive:true,mode:0o700});
  const values={LCT_SERVICE_NAME:cfg.serviceName,LCT_PLATFORM:cfg.platform,LCT_CONFIG_DIR:cfg.configDir,LCT_STATE_DIR:cfg.stateDir,LCT_WORKSPACE_ROOT:cfg.workspaceRoot,LCT_CACHE_DIR:cfg.cacheDir,LCT_PERSIST_DIR:cfg.persistDir,LCT_LOGS_DIR:cfg.logsDir,LCT_BIN_DIR:cfg.binDir,LCT_NODE_BIN:process.execPath,LCT_WEB_MODE:'managed',LCT_WEB_HOST:'127.0.0.1',LCT_WEB_PORT:8787,LCT_WEB_TOKEN:require('node:crypto').randomBytes(24).toString('base64url'),LARK_OWNER_OPEN_ID:''};
+ values.LCT_NODE_ROLE=cfg.nodeRole;values.LCT_FEISHU_CONSUME='1';
  for(const value of Object.values(values))if(/[\r\n\0]/.test(String(value)))throw Error('配置路径含非法字符');
  fs.writeFileSync(file,'# 填写 owner 和独立机器人配置后，运行 lct doctor。未启动任何服务。\n'+Object.entries(values).map(([k,v])=>k+'='+v).join('\n')+'\n',{flag:'wx',mode:0o600});
  const registry=path.join(cfg.configDir,'projects.json');if(!fs.existsSync(registry))fs.writeFileSync(registry,JSON.stringify({scratch:cfg.scratchDir},null,2),{flag:'wx',mode:0o600});
@@ -237,6 +253,7 @@ async function main(argv){
     case 'up':{const r=up(ctx);output({...r,note:'✅ 已启动'+(r.pid?'（pid '+r.pid+'）':'')+'。'+r.note});break;}
     case 'down':{const r=down(ctx);output({...r,note:r.stopped?'✅ 已停止。':(r.note||'未在运行。')});break;}
     case 'status':{const r=status(ctx);console.log(argv.includes('--json')?JSON.stringify(r):fmtStatus(r));break;}
+    case 'resume':{const r=resume(ctx,argv[3]);console.log(argv.includes('--json')?JSON.stringify(r):formatResume(r));break;}
     case 'logs':{
       const follow=argv.includes('-f')||argv.includes('--follow');
       const n=Number(argv.find(a=>/^\d+$/.test(a)))||80;
@@ -263,10 +280,10 @@ async function main(argv){
       break;
     }
     default:
-      console.log('用法: lct <init|up|down|status|logs [行数] [-f]|doctor|version|service install|uninstall>；后台: lct web <up|down|status|logs|service install|uninstall>');
+      console.log('用法: lct <init|up|down|status|resume <任务ID>|logs [行数] [-f]|doctor|version|service install|uninstall>；后台: lct web <up|down|status|logs|service install|uninstall>');
       process.exitCode=cmd==='help'||cmd==='--help'?0:1;
   }
 }
 
-module.exports={initConfig,webContext,parseEnvFile,loadCtx,readPid,isAlive,manager,up,down,status,logs,systemdUnit,launchdPlist,serviceInstall,serviceUninstall};
+module.exports={initConfig,webContext,parseEnvFile,loadCtx,readPid,isAlive,manager,up,down,status,resume,logs,systemdUnit,launchdPlist,serviceInstall,serviceUninstall};
 if(require.main===module)main(process.argv).catch(e=>{console.error('❌ '+e.message);process.exitCode=1;});

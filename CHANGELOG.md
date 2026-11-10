@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+- 增加 Mac 本机与 N100 服务器节点角色：独立 `instance.json`、状态目录与 `threadNode` 判定；`LCT_FEISHU_CONSUME=0` 支持共用飞书应用时停用本端事件消费，防止双活派活。
+- 增加 Session Attachment 与两阶段释放：`/release` 将 active 群转为 parked，解除执行附着并保存 Resume；`/done` 才归档解散。运行、排队、审批或待投递未清空时拒绝释放。
+- `lct resume <任务ID>` 在同一节点返回精确 Codex 恢复命令；跨节点返回 `remote-result-handoff`，不直接复用服务器 thread ID。
+- 一个 Codex thread 最多一个 active 群执行入口；管理视图增加 parked 状态和 Attachment 节点信息。
+- 修复 CCSwitch 切换后旧 Codex 线程仍保留历史模型的问题：每轮读取有效配置，并显式覆盖新建、续接和 turn 的模型与思考强度，禁止新线程静默 fallback。
+- 补充 Mac/N100 独立安装及后续联邦式融合设计。自动跨机 Handoff、成果回收和统一控制台仍属于后续验收范围，本候选不等同于完整跨机续接。
+- 候选全量回归 362 项：361 通过、1 项 macOS 专属测试在 Linux 上跳过、0 失败。
+
 - 新增项目官网与更新页：构建时读取公开版本记录，单独标注候选进展，支持 Atom 订阅与 GitHub Pages 自动部署。
 
 - 增加指令撤回和重新编辑：Web 会话详情/队列及 `/withdraw`、`/edit` 共用持久控制入口，支持待执行指令、执行中任务和等待建群的派活请求。

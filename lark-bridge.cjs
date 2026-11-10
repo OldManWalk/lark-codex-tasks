@@ -11,6 +11,7 @@ const {CodexClient}=require('./codex-client.cjs');
 const {buildReportCard,reportExcerpt}=require('./report-card.cjs');
 const mediaCache=require('./media-cache.cjs');
 const {saveReportFiles}=require('./report-file.cjs');
+const sessionAttachment=require('./session-attachment.cjs');
 const run=promisify(execFile),home=os.homedir();
 const configModule=require('./config.cjs');
 const CFG=configModule.buildConfig(process.env,home);
@@ -433,7 +434,7 @@ function groupName(emoji,alias,topic,id){return emoji+' '+groupTopic(topic,alias
 function syncGroupName(chat){
   const g=groups[chat];if(!g||!g.title||!g.anchor)return;
   const q=queues[chat];
-  const want=groupName(q&&q.paused?'🟡':'🔵',g.alias,g.topic,g.anchor);
+  const want=groupName(g.status==='parked'?'⚪':q&&q.paused?'🟡':'🔵',g.alias,g.topic,g.anchor);
   if(want===g.title)return;
   const prev=g.title;g.title=want;
   try{saveGroups();}catch(e){g.title=prev;console.error('[bridge] 群名状态持久化失败:',e.message);return;}
@@ -960,15 +961,49 @@ function markBroken(cid,g,reason){groups[cid]={...g,status:'bind-broken',reason}
 // 群任务上下文：注册存在 + anchor job 存在 + project/chat 一致 + 线程未被私聊占用；任一不满足即标记 bind-broken 并阻断
 function groupContext(chat){
   const g=groups[chat];if(!g)return null;
-  if(g.status==='bind-broken')return null;
+  if(g.status!=='active')return null;
   const j=supervisor.jobs.get(g.anchor);
   if(!j){markBroken(chat,g,'anchor-missing');return null;}
   if(g.alias&&j.alias!==g.alias){markBroken(chat,g,'alias-mismatch');return null;}
   if(j.chat&&j.chat!==chat){markBroken(chat,g,'chat-mismatch');return null;}
   if(j.threadId&&dmThreadIds().has(j.threadId)){markBroken(chat,g,'thread-polluted');return null;}
   const meta={kind:'group_task',chat,thread:j.threadId||null,chain:supervisor.chainId(j),instr:TASK_INSTR_VERSION};
-  if(g.kind!==meta.kind||g.thread!==meta.thread||g.chain!==meta.chain||g.instr!==meta.instr){groups[chat]={...g,...meta};saveGroups();}
+  let next={...g,...meta};
+  if(managementNode)next=sessionAttachment.normalizeAttachment({group:next,job:j,chain:meta.chain,node:managementNode});
+  if(JSON.stringify(next)!==JSON.stringify(groups[chat])){groups[chat]=next;saveGroups();}
   return {g:groups[chat],j};
+}
+function releaseBinding(jobId,sourceChat){
+ const hinted=sourceChat&&groups[sourceChat];
+ const job=jobId?supervisor.jobs.get(jobId):hinted&&supervisor.jobs.get(hinted.anchor);
+ if(!job||!job.chat)throw Error('找不到要释放的任务。请在任务群内发 /release，或使用 /release <任务ID>。');
+ const chat=job.chat,current=groups[chat];
+ if(current?.status==='parked'&&current.attachment?.resume)return {chat,job,resume:current.attachment.resume,alreadyParked:true};
+ if(!current||current.status!=='active'||current.anchor!==job.id)throw Error('该任务不是当前 active 群锚点，不能释放。');
+ if(['running','cancelling'].includes(job.status))throw Error('任务仍在运行。默认等待本轮完成；需要中断时请显式 /cancel，核查后再 /release。');
+ const q=queues[chat];if(q&&q.items.some(i=>['queued','active'].includes(i.status)))throw Error('本群还有排队或执行中的指令，不能释放；请先等待或明确处理队列。');
+ if((pendingByChat.get(chat)||[]).length)throw Error('本群还有未决审批，不能释放；请先完成或取消审批。');
+ if(outbox.some(o=>o.chat===chat&&o.state==='pending'))throw Error('本群还有待投递消息，不能释放；请先等待通知送达。');
+ if(!managementNode)throw Error('当前执行节点尚未就绪，不能生成 Resume。');
+ const {group:next,resume}=sessionAttachment.parkAttachment({group:current,job,chain:supervisor.chainId(job),node:managementNode});
+ const previousRelease=job.release;
+ job.release=resume;supervisor.save(job);
+ groups[chat]=next;
+ try{saveGroups();}
+ catch(e){
+  groups[chat]=current;job.release=previousRelease;
+  try{supervisor.save(job);}catch(rollbackError){throw Error('群释放写入失败，且任务 Resume 回滚失败，请人工核查: '+rollbackError.message);}
+  throw e;
+ }
+ syncGroupName(chat);
+ return {chat,job,resume,alreadyParked:false};
+}
+function releaseMessage(result){
+ const node=result.resume.threadNode;
+ return (result.alreadyParked?'⚪ 本群已经处于 parked。\n':'⚪ 已解除群与执行 Session 的附着，群保留为 parked。\n')+
+  '任务: '+result.job.id+' · '+result.job.alias+'\n线程节点: '+node.label+' ('+node.role+')\n'+
+  '在该节点执行: lct resume '+result.job.id+'\n其他设备不能直接复用此 thread ID，需走跨机成果回收。\n'+
+  '本群不会自动解散，也不会再接收普通任务消息。确认后执行 /done '+result.job.id+' 结算。';
 }
 function archiveToKnowledge(j){
   try{
@@ -1009,7 +1044,7 @@ function isChatGone(e){
 }
 async function settle(job){
   const chat=job.chat,current=chat&&groups[chat];
-  if(!current||current.status!=='active'||current.anchor!==job.id)throw Error('该任务不是当前群的任务锚点，不能结算。请在现役任务群用 /done。');
+  if(!current||!['active','parked'].includes(current.status)||current.anchor!==job.id)throw Error('该任务不是当前群的 active/parked 锚点，不能结算。');
   if(settlingChats.has(chat))throw Error('该任务群正在结算，请等待结果。');
   settlingChats.add(chat);
   try{
@@ -1263,6 +1298,7 @@ async function resumeFlow(intent){
   const existing=[...supervisor.jobs.values()].find(j=>j.message===intent.messageId);
   if(existing&&(existing.alias!==intent.alias||!existing.threadId))return '❌ 上次续接任务未成功启动或项目不一致；未重复创建任务，请重新发起。';
   if(existing&&groups[existing.chat]&&groups[existing.chat].anchor===existing.id)return '该续接指令已受理（任务 '+existing.id+'），无需重发。';
+  sessionAttachment.assertThreadAvailable(groups,intent.thread);
   if(!existing&&!projects(supervisor.config,supervisor.root)[intent.alias])return '❌ 未知或不可用项目: '+intent.alias+'。未建群、未启动任务。';
   const rec=dispatches[intent.messageId];
   let g=existing&&existing.chat||rec&&rec.groupChat;
@@ -1409,7 +1445,7 @@ async function respond(e){
       case '/ping':{const h=healthLine();return e.chat_type==='p2p'?CFG.dmGreeting+h:CFG.brand+' 在线。'+h;} // F05：群内中性任务身份；健康依据真实组件状态
       case '/files':{const records=Object.values(attachments).filter(r=>e.chat_type==='p2p'||r.chat===chat).slice(-20);return records.length?records.map(r=>r.id+' · '+(r.keptAt?'persist':r.cacheDeletedAt?'已清理':r.keepRequestedAt?'待持久保存':!r.ready?'接收未完成':'cache')+' · '+r.path).join('\n')+'\n长期保留: /keep <附件ID>':'暂无附件记录。';}
       case '/keep':{const record=attachments[p.id];if(!record||e.chat_type==='group'&&record.chat!==chat)throw Error('本会话没有该附件 ID（/files 查看）');const kept=keepAttachment(p.id);return '已校验并保存到 persist，自动清理不会删除: '+kept;}
-      case '/help':return '命令:\n/ping /status /projects /jobs /groups\n/group [项目] [任务]（先建独立工作群，默认 scratch）\n/run <项目> <任务> [--yolo|--safe]\n/resume <项目> <会话ID> <任务>\n/cancel [任务ID]（私聊裸发=取消当前对话）\n/logs [任务ID]\n/done [任务ID] 结算任务群(归档+解散)\n/reopen <任务ID> 重开任务群\n/cleanup 清理失效群注册\n/adopt <群ID> <项目> <任务> 受控绑定已有群\n/auditgroups 审计未注册群\n/outbox 查看死信 · /outbox show <ID> · /outbox retry <ID> --checked · /outbox resolve <ID> delivered|obsolete --checked\n/files 查看附件 · /keep <附件ID> 长期保留\n/withdraw <序号|current> 撤回 · /edit <序号|current> <新指令> 修改\n/queue 查看本群队列 · /qpause 暂停 · /qresume 恢复 · /qdrop <序号> 丢弃 · /qclear 清空等待\n──\n私聊派活: "<项目> <任务>"；也可说“建群处理工作”\n群聊发消息=给本群已绑定任务派后续活（自动排队、轮到自己动执行）\n审批: 点卡片按钮 或回复 y / ys / n / c';
+      case '/help':return '命令:\n/ping /status /projects /jobs /groups\n/group [项目] [任务]（先建独立工作群，默认 scratch）\n/run <项目> <任务> [--yolo|--safe]\n/resume <项目> <会话ID> <任务>\n/cancel [任务ID]（私聊裸发=取消当前对话）\n/logs [任务ID]\n/release [任务ID] 解除执行附着并生成 Resume，群保留 parked\n/done [任务ID] 结算任务群(归档+解散)\n/reopen <任务ID> 重开任务群\n/cleanup 清理失效群注册\n/adopt <群ID> <项目> <任务> 受控绑定已有群\n/auditgroups 审计未注册群\n/outbox 查看死信 · /outbox show <ID> · /outbox retry <ID> --checked · /outbox resolve <ID> delivered|obsolete --checked\n/files 查看附件 · /keep <附件ID> 长期保留\n/withdraw <序号|current> 撤回 · /edit <序号|current> <新指令> 修改\n/queue 查看本群队列 · /qpause 暂停 · /qresume 恢复 · /qdrop <序号> 丢弃 · /qclear 清空等待\n──\n私聊派活: "<项目> <任务>"；也可说“建群处理工作”\n群聊发消息=给本群已绑定任务派后续活（自动排队、轮到自己动执行）\n审批: 点卡片按钮 或回复 y / ys / n / c';
       case '/projects':return Object.keys(projects(supervisor.config,supervisor.root)).join('\n')||'无可用项目。';
       case '/jobs':return supervisor.list();
       case '/groups':{const lines=Object.entries(groups).map(([,g])=>'🔵 '+g.alias+' · '+g.anchor.slice(0,6)+' · '+g.title);return lines.join('\n')||'暂无任务群。';}
@@ -1460,14 +1496,18 @@ async function respond(e){
       case '/done':{
         let job=null;
         if(p.id)job=supervisor.jobs.get(p.id);
-        else{const gc=groupContext(chat);if(gc)job=gc.j;}
+        else{const gc=groupContext(chat);if(gc)job=gc.j;else if(groups[chat]?.status==='parked')job=supervisor.jobs.get(groups[chat].anchor);}
         if(!job)throw new Error('找不到要结算的任务。在任务群里发 /done，或 /done <任务ID>。');
-        if(!job.chat||groups[job.chat]?.anchor!==job.id||groups[job.chat]?.status!=='active')throw new Error('该任务不是现役群的任务锚点，不能结算。请在现役任务群用 /done。');
+        if(!job.chat||groups[job.chat]?.anchor!==job.id||!['active','parked'].includes(groups[job.chat]?.status))throw new Error('该任务不是现役群或 parked 群的任务锚点，不能结算。');
         if(['running','cancelling'].includes(job.status))throw new Error('任务还在运行，先等完成或 /cancel。');
         const q=queues[job.chat||chat]; // 队列未空不解散：不静默删除已受理指令
         if(q&&q.items.some(i=>['queued','active'].includes(i.status)))throw new Error('本群还有排队/执行中的指令。先 /qclear 清空或等队列排空再 /done。');
         settle(job).then(summary=>{if(chat!==job.chat)send(chat,summary,'done-'+job.id).catch(()=>{});}).catch(err=>send(chat,'❌ 结算失败: '+redact(err.message).slice(0,200),'doneerr-'+Date.now()).catch(()=>{}));
         return '收到，结算中（归档+解散群），完成后回报。';}
+      case '/release':{
+        try{return releaseMessage(releaseBinding(p.id||null,chat));}
+        catch(err){return '❌ 释放失败: '+redact(err.message).slice(0,300);}
+      }
       case '/group':{
         if(e.chat_type!=='p2p')return '⛔ /group 仅限私聊使用。';
         if(!projects(supervisor.config,supervisor.root)[p.alias])return '❌ 未知或不可用项目: '+p.alias+'。未建群、未启动任务。用 /projects 查看。';
@@ -1493,6 +1533,7 @@ async function respond(e){
     if(settlingChats.has(chat))return '任务群正在结算，本条消息未受理。请等待结算结果；失败后可重发。';
     const prior=supervisor.jobs.get(groups[chat]?.anchor);
     if(prior?.settledAt&&prior.settledChat===chat)return '本群已完成解散，绑定清理尚未完成。本条未受理，请 /done 重试清理。';
+    if(groups[chat]?.status==='parked')return '⚪ 本群已解除执行附着，普通消息不会执行。请按释放回执在正确节点恢复；确认不再需要本群时 /done '+groups[chat].anchor+' 结算。';
     const gc=groupContext(chat);
     if(!gc){ // 未绑定/绑定损坏：报障并给出恢复路径；绝不降级私聊、不发模型 turn
       const g=groups[chat];
@@ -1595,7 +1636,7 @@ function sweepHooks(){ // hook 通知不再投递，周期压制+每周清理文
   }
 }
 // Management commands share the same durable operations as Feishu slash commands.
-let managementHoldUntil=0,managementRequests=0,managementNode=null;
+let managementHoldUntil=0,managementRequests=0,managementNode=require('./runtime-info.cjs').identity(CFG);
 const managementInstance=String(process.pid)+'-'+Date.now();
 function queueControl(chat,action,seq){
  const q=queues[chat];if(!q)throw Error('队列不存在，请刷新');
@@ -1665,7 +1706,7 @@ function webSnapshot(){
     approvals:[...pendingByChat.values()].flat().map(e=>({job:e.job?.id,chat:e.job?.chat})),
     jobs:[...supervisor.jobs.values()].sort((a,b)=>b.started-a.started).map(j=>({id:j.id,alias:j.alias,status:j.status,chat:j.chat,started:j.started,finished:j.finished,chain:supervisor.chainId(j),threadId:j.threadId||j.resume||null,title:redact(String(groups[j.chat]?.topic||j.task||j.alias||'')).slice(0,120),settled:!!j.settledAt,thread:!!j.threadId,cwd:j.cwd||j.worktree||null,workspaceMode:(j.cwd||j.worktree)===projectDirs[j.alias]?'共享项目目录':'独立工作目录',executionMode:j.resume?'原会话续接':'新会话'})),
     queues:Object.fromEntries(Object.entries(queues).map(([chat,q])=>[chat,{paused:q.paused,pauseReason:q.pauseReason?redact(String(q.pauseReason)).slice(0,160):null,items:(q.items||[]).filter((i,n,a)=>['queued','active'].includes(i.status)||i.lastChange||n>=a.length-20).map(i=>({seq:i.seq,kind:i.kind,status:i.change?.status==='stopping'?'stopping':i.status,change:i.change?{kind:i.change.kind,status:i.change.status,error:i.change.error||null}:null,lastChange:i.lastChange||null,runJobId:i.runJobId||null,stopError:supervisor.jobs.get(i.runJobId)?.stopError||i.change?.error||null,revision:i.revision||0,textLen:(i.text||'').length,error:i.error?redact(String(i.error)).slice(0,120):null,enqueuedAt:i.enqueuedAt}))}])),
-    groups:Object.entries(groups).map(([chat,g])=>({chat,alias:g.alias,anchor:g.anchor,thread:g.thread,chain:g.chain,topic:redact(String(g.topic||'')),title:redact(String(g.title||'')),status:g.status})),
+    groups:Object.entries(groups).map(([chat,g])=>({chat,alias:g.alias,anchor:g.anchor,thread:g.thread,chain:g.chain,topic:redact(String(g.topic||'')),title:redact(String(g.title||'')),status:g.status,attachment:g.attachment?{state:g.attachment.state,threadNode:g.attachment.threadNode,ownerNode:g.attachment.ownerNode,generation:g.attachment.generation,hasResume:!!g.attachment.resume}:null})),
     outbox:outbox.filter((o,n,a)=>['failed','pending'].includes(o.state)||n>=a.length-30).map(o=>({id:o.id,chat:o.chat,state:o.state,attempts:o.attempts,textLen:(o.text||'').length,lastError:o.lastError?redact(String(o.lastError)).slice(0,120):null,createdAt:o.createdAt})),
     dispatches:Object.values(dispatches).filter((d,n,a)=>d.status==='pending'||n>=a.length-20).map(d=>({target:'dispatch-'+d.messageId,chat:d.chat,kind:d.kind,alias:d.alias,status:d.status,createdAt:d.createdAt,editable:d.status==='pending'&&!executingIntents.has(d.messageId)&&!d.groupChat&&!d.jobId})),
     attachments:Object.values(attachments).slice(-30).map(a=>({id:a.id,isImage:a.isImage,size:a.size||0,ready:!!a.ready,kept:!!a.keptAt,createdAt:a.createdAt})),
@@ -1682,7 +1723,14 @@ function webSnapshot(){
 
 async function main(){
   getWorkspace();
-  managementNode=require('./runtime-info.cjs').identity(CFG);
+  let attachmentMigration=false;
+  for(const [chat,g] of Object.entries(groups)){
+   if(!['active','parked'].includes(g.status))continue;
+   const j=supervisor.jobs.get(g.anchor);if(!j)continue;
+   const next=sessionAttachment.normalizeAttachment({group:g,job:j,chain:supervisor.chainId(j),node:managementNode});
+   if(JSON.stringify(next)!==JSON.stringify(g)){groups[chat]=next;attachmentMigration=true;}
+  }
+  if(attachmentMigration)saveGroups();
   if(process.env.LCT_WEB_MODE==='managed')await require('./control-channel.cjs').startChannel({stateDir:state,getState:webSnapshot,act:managementAction,getInstruction:instructionDetail});
   if(process.env.LCT_WEB_MODE==='managed'&&process.env.LCT_WORKSPACE_ENABLED==='1')await require('./control-channel.cjs').startChannel({stateDir:state,workspaceOnly:true,workspaceAct:b=>{if(managementHoldUntil>Date.now())throw Error('服务正在维护');return workspaceAccess.act(b);}});
   mediaCache.managedDir(CFG.cacheDir);mediaCache.managedDir(CFG.persistDir);
@@ -1716,7 +1764,8 @@ async function main(){
     };
     console.log('[bridge] test event file enabled: '+testFile);arm();
   }
-  await Promise.all([consumeLoop('im.message.receive_v1',handle,'im',false),consumeLoop('card.action.trigger',handleCardAction,'card',true)]);
+  if(CFG.consumeFeishu)await Promise.all([consumeLoop('im.message.receive_v1',handle,'im',false),consumeLoop('card.action.trigger',handleCardAction,'card',true)]);
+  else console.error('[bridge] Feishu consumers disabled (LCT_FEISHU_CONSUME=0); this node is control/Handoff only');
   clearInterval(nativeTimer);clearInterval(retry);clearInterval(sweeper);clearInterval(cacheSweeper);clearInterval(pumpTimer);clearInterval(obSweeper);
 }
 function stop(){

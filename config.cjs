@@ -48,6 +48,8 @@ function buildConfig(env=process.env,home=os.homedir(),platform){
   const cacheDir=e('LCT_CACHE_DIR',dirs.cacheDir),persistDir=e('LCT_PERSIST_DIR',path.join(workspaceRoot,'persist',serviceName));
   if(!path.isAbsolute(cacheDir)||!path.isAbsolute(persistDir)||/[\r\n\0]/.test(cacheDir+persistDir))throw Error('Cache/Persist must be absolute paths');
   if(path.resolve(cacheDir)===path.resolve(persistDir))throw Error('Cache/Persist directories must be distinct');
+  const nodeRole=e('LCT_NODE_ROLE',plat.detectPlatform(platform)==='darwin'?'local':'server');
+  if(!['local','server'].includes(nodeRole))throw Error('LCT_NODE_ROLE 必须是 local 或 server');
   return {
     home,platform:plat.detectPlatform(platform),configDir,stateDir,workspaceRoot,knowledgeDir,
     logsDir:e('LCT_LOGS_DIR',dirs.logsDir),
@@ -65,6 +67,8 @@ function buildConfig(env=process.env,home=os.homedir(),platform){
     attachmentMaxCount:positiveInt('LCT_ATTACHMENT_MAX_COUNT',8),
     archiveDir:e('LCT_ARCHIVE_DIR',path.join(knowledgeDir,'任务归档')),
     brand,serviceName,safety,
+    nodeRole,
+    consumeFeishu:e('LCT_FEISHU_CONSUME','1')!=='0',
     threadPrefix:e('LCT_THREAD_PREFIX','lct'),
     opsChat:e('LARK_OPS_CHAT',''),
     ownerOpenId:e('LARK_OWNER_OPEN_ID',''),

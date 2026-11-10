@@ -71,9 +71,24 @@ class CodexClient {
       const original = await this._req('thread/read', {threadId:this.resumeThreadId,includeTurns:false}, 30000);
       this.cwd = require('./continuation.cjs').localCwd(original.thread, {expectedCwd:this.expectedResumeCwd});
     }
+    // CCSwitch changes the effective defaults, while resumed threads retain their
+    // previous model unless every new turn explicitly overrides it.
+    const effective = await this._req('config/read', {cwd: this.cwd, includeLayers: false}, 30000);
+    const config = effective.config || {};
+    this.modelPolicy = {
+      model: tp.model || config.model || null,
+      modelProvider: tp.modelProvider || config.model_provider || null,
+      effort: tp.effort || config.model_reasoning_effort || null,
+    };
+    const policy = this.modelPolicy;
+    const modelOverride = {
+      ...(policy.model ? {model: policy.model} : {}),
+      ...(policy.modelProvider ? {modelProvider: policy.modelProvider} : {}),
+    };
+    this._log('[model] requested='+(policy.model || 'thread-default')+' provider='+(policy.modelProvider || 'thread-default')+' effort='+(policy.effort || 'thread-default'));
     const t = this.resumeThreadId
-      ? await this._req('thread/resume', {threadId: this.resumeThreadId, cwd: this.cwd, sandbox: tp.sandbox, approvalPolicy: tp.approvalPolicy, developerInstructions: tp.developerInstructions || null}, 30000)
-      : await this._req('thread/start', tp, 30000);
+      ? await this._req('thread/resume', {threadId: this.resumeThreadId, cwd: this.cwd, sandbox: tp.sandbox, approvalPolicy: tp.approvalPolicy, developerInstructions: tp.developerInstructions || null, ...modelOverride}, 30000)
+      : await this._req('thread/start', {...tp, ...modelOverride, allowProviderModelFallback: false}, 30000);
     this.thread = t.thread;
     this.threadId = t.thread.id;
     return this.threadId;
@@ -156,7 +171,10 @@ class CodexClient {
       if (this.finished || this.disposed) { rej(new Error('client finished, run rejected')); return; } // 不得悬挂（R04）
       this.runResolve = res; this.runReject = rej;
       this.turnSubmissionAttempted = true;
-      this._req('turn/start', {threadId: this.threadId, input: [{type: 'text', text: task, text_elements: []}, ...(options.images||[]).map(p=>({type:'localImage',path:p}))], cwd: this.cwd, ...(options.outputSchema ? {outputSchema: options.outputSchema} : {})}, 30000)
+      const policy = this.modelPolicy || {};
+      const model = options.model || policy.model;
+      const effort = options.effort || policy.effort;
+      this._req('turn/start', {threadId: this.threadId, input: [{type: 'text', text: task, text_elements: []}, ...(options.images||[]).map(p=>({type:'localImage',path:p}))], cwd: this.cwd, ...(model ? {model} : {}), ...(effort ? {effort} : {}), ...(options.outputSchema ? {outputSchema: options.outputSchema} : {})}, 30000)
         .then(r => { this.turnId = r.turn.id; this.turnSubmitted = true; })
         .catch(e => this._finish('failed', e));
     });

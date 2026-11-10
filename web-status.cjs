@@ -51,9 +51,9 @@ function sessionViews({jobs=[],groups=[],queues={}}){
  return [...buckets.values()].map(records=>{
   records.sort((a,b)=>(b.started||0)-(a.started||0)||b.id.localeCompare(a.id));
   const latest=records[0],ids=new Set(records.map(j=>j.id));
-  const bound=groups.filter(g=>g.status==='active'&&(ids.has(g.anchor)||(latest.threadId&&g.thread===latest.threadId)));
+  const bound=groups.filter(g=>['active','parked'].includes(g.status)&&(ids.has(g.anchor)||(latest.threadId&&g.thread===latest.threadId)));
   const group=bound[0],q=group?queues[group.chat]:null,active=records.find(j=>['running','cancelling'].includes(j.status));
-  const status=bound.length>1?'unknown':active?active.status:q?.paused?'paused':q?.items?.some(i=>['active','queued'].includes(i.status))?'queued':!group&&latest.settled?'archived':['failed','interrupted'].includes(latest.status)?latest.status:group?'idle':latest.settled?'archived':'unbound';
+  const status=bound.length>1?'unknown':active?active.status:group?.status==='parked'?'parked':q?.paused?'paused':q?.items?.some(i=>['active','queued'].includes(i.status))?'queued':!group&&latest.settled?'archived':['failed','interrupted'].includes(latest.status)?latest.status:group?'idle':latest.settled?'archived':'unbound';
   return {id:latest.threadId||latest.chain||records[records.length-1].id,threadId:latest.threadId||null,title:group?.topic||latest.title||latest.alias,alias:latest.alias,status,chat:group?.chat||null,groupTitle:group?.title||null,latestJobId:latest.id,activeJobId:active?.id||null,started:Math.min(...records.map(j=>j.started||0)),updated:latest.finished||latest.started,cwd:latest.cwd,workspaceMode:latest.workspaceMode,executionCount:records.length,canReopen:!group&&!active,bindingConflict:bound.length>1,records};
  }).sort((a,b)=>(b.updated||0)-(a.updated||0));
 }

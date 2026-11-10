@@ -5,7 +5,7 @@ function identity(cfg){
  let value;try{value=JSON.parse(fs.readFileSync(file,'utf8'));}catch(e){if(e.code!=='ENOENT')throw Error('实例标识损坏，请人工核查 instance.json');}
  if(!value){value={id:crypto.randomUUID(),createdAt:Date.now()};try{fs.writeFileSync(file,JSON.stringify(value),{flag:'wx',mode:0o600});}catch(e){if(e.code!=='EEXIST')throw e;value=JSON.parse(fs.readFileSync(file,'utf8'));}}
  if(typeof value.id!=='string')throw Error('实例标识无效');
- return {id:value.id,label:process.env.LCT_NODE_LABEL||os.hostname(),platform:cfg.platform,wsl:cfg.platform==='linux'&&(/microsoft/i.test(os.release())||!!process.env.WSL_DISTRO_NAME)};
+ return {id:value.id,label:process.env.LCT_NODE_LABEL||os.hostname(),role:cfg.nodeRole||(cfg.platform==='darwin'?'local':'server'),platform:cfg.platform,wsl:cfg.platform==='linux'&&(/microsoft/i.test(os.release())||!!process.env.WSL_DISTRO_NAME)};
 }
 function doctor(ctx){
  const cfg=ctx.CFG,checks=[];const add=(name,ok,detail)=>checks.push({name,ok,detail});

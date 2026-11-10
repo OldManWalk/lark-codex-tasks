@@ -35,8 +35,8 @@ function parse(text) {
  if(cmd==='/run'){const mm=rest.match(/^([a-z][a-z0-9_-]{0,31})\s+([\s\S]+)$/);if(!mm||!mm[2].trim())throw Error('用法: /run <项目> <任务>');return {cmd,alias:mm[1],task:mm[2].trim()};}
  if(cmd==='/group'){if(!rest)return {cmd,alias:'scratch',task:null};const mm=rest.match(/^([a-z][a-z0-9_-]{0,31})(?:\s+([\s\S]+))?$/);if(!mm)throw Error('用法: /group [项目] [任务]');return {cmd,alias:mm[1],task:mm[2]?.trim()||null};}
  if(cmd==='/resume'){const mm=rest.match(/^([a-z][a-z0-9_-]{0,31})\s+(0[0-9a-f]{3}[0-9a-f-]{30,})\s+([\s\S]+)$/);if(!mm)throw Error('用法: /resume <项目> <会话ID> <任务>');return {cmd,alias:mm[1],thread:mm[2],task:mm[3].trim()};}
- if(['/cancel','/logs','/reopen','/done'].includes(cmd)){
-   if(cmd==='/done'||cmd==='/logs'){ if(rest&&!/^[a-f0-9]{12}$/.test(rest)) throw Error('任务 ID 格式不正确。'); return rest?{cmd,id:rest}:{cmd}; }
+ if(['/cancel','/logs','/reopen','/done','/release'].includes(cmd)){
+  if(['/done','/logs','/release'].includes(cmd)){ if(rest&&!/^[a-f0-9]{12}$/.test(rest)) throw Error('任务 ID 格式不正确。'); return rest?{cmd,id:rest}:{cmd}; }
    if(cmd==='/cancel'&&!rest)return {cmd}; // 裸 /cancel：私聊取消本会话执行中的对话（N02）
    if(!rest||!/^[a-f0-9]{12}$/.test(rest))throw Error('用法: '+cmd+' <任务ID>');return {cmd,id:rest};}
  if(cmd==='/keep'){if(!/^om_[\w-]+-\d+$/.test(rest))throw Error('用法: /keep <附件ID>（/files 查看）');return {cmd,id:rest};}

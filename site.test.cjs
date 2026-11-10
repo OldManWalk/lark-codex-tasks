@@ -19,3 +19,10 @@ test('news schema rejects duplicate anchors and accidental release promotion',()
 test('custom base URLs are propagated to discovery metadata and unsafe bases are rejected',t=>{
  const output=fixture(t);build({output,base:'https://example.com/project/'});assert.match(fs.readFileSync(path.join(output,'feed.xml'),'utf8'),/https:\/\/example.com\/project\/updates\//);assert.throws(()=>build({output,base:'javascript:alert(1)'}),/HTTPS/);assert.throws(()=>build({output,base:'https://user:password@example.com/'}),/HTTPS/);
 });
+
+test('local and server topology is visible without claiming completed fusion',t=>{
+ const output=fixture(t);build({output});const home=fs.readFileSync(path.join(output,'index.html'),'utf8'),updates=fs.readFileSync(path.join(output,'updates/index.html'),'utf8');
+ assert(home.includes('id="nodes"'));assert(home.includes('LCT_FEISHU_CONSUME=0'));assert(home.includes('/release'));
+ assert(home.includes('自动跨机 Handoff、成果回收和统一控制台仍按后续阶段验收'));
+ assert(updates.includes('id="session-attachments"'));assert(updates.includes('尚未发布'));
+});

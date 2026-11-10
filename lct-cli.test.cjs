@@ -95,3 +95,22 @@ test('L9: launchd helper parses space-containing environment values as data, wit
  fs.writeFileSync(config,'LCT_ACCEPTANCE_VALUE=hello with spaces $(touch '+marker+')\n');fs.writeFileSync(stub,'console.log(process.env.LCT_ACCEPTANCE_VALUE);');
  const r=spawnSync(process.execPath,[path.join(__dirname,'service-launcher.cjs'),config,stub],{encoding:'utf8',timeout:5000});assert.equal(r.status,0,r.stderr);assert(r.stdout.includes('hello with spaces $(touch '));assert(!fs.existsSync(marker));
 });
+
+test('L10: resume on the thread node returns an exact Codex command',t=>{
+ const {run,env,root}=fixture(t),ctx=lct.loadCtx(env),node=require('./runtime-info.cjs').identity(ctx.CFG),id='aaaaaaaaaaaa';
+ const release={schemaVersion:1,kind:'codex-resume',jobId:id,chainId:'chain-a',threadId:'thread-a',threadNode:node,sourceCwd:root,generation:2,releasedAt:1};
+ const dir=path.join(env.LCT_STATE_DIR,'jobs',id);fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'state.json'),JSON.stringify({id,release}));
+ const r=run(['resume',id,'--json']);assert.equal(r.status,0,r.stderr);const out=JSON.parse(r.stdout);
+ assert.equal(out.strategy,'same-node-thread');assert.equal(out.command.cwd,root);assert.deepEqual(out.command.args,['codex','resume','thread-a']);
+ const text=run(['resume',id]);assert(text.stdout.includes("codex' 'resume' 'thread-a"));assert(!text.stdout.includes('跨机'));
+});
+
+test('L11: a server thread never produces a fake local resume command',t=>{
+ const {run,env,root}=fixture(t),ctx=lct.loadCtx(env),current=require('./runtime-info.cjs').identity(ctx.CFG),id='bbbbbbbbbbbb';
+ const source={...current,id:'different-server',role:'server',label:'N100'};
+ const release={schemaVersion:1,kind:'codex-resume',jobId:id,chainId:'chain-b',threadId:'thread-b',threadNode:source,sourceCwd:root,generation:3,releasedAt:1};
+ const dir=path.join(env.LCT_STATE_DIR,'jobs',id);fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'state.json'),JSON.stringify({id,release}));
+ const r=run(['resume',id,'--json']);assert.equal(r.status,0,r.stderr);const out=JSON.parse(r.stdout);
+ assert.equal(out.strategy,'remote-result-handoff');assert.equal(out.command,null);assert.equal(out.reason,'thread-node-mismatch');
+ const text=run(['resume',id]);assert(text.stdout.includes('不能直接跨机 resume'));assert(!text.stdout.includes("codex' 'resume"));
+});

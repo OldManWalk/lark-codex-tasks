@@ -76,3 +76,11 @@ test('P9: LCT_PLATFORM env pins the layout when no explicit param is given',()=>
 test('P10: invalid LCT_PLATFORM is rejected',()=>{
  assert.throws(()=>buildConfig({LCT_PLATFORM:'plan9'},'/home/tester'),/LCT_PLATFORM 无效/);
 });
+
+test('P11: Mac and server nodes have independent roles and consumer policy',()=>{
+ assert.equal(buildConfig({LCT_PLATFORM:'darwin'}).nodeRole,'local');
+ assert.equal(buildConfig({LCT_PLATFORM:'linux'}).nodeRole,'server');
+ assert.equal(buildConfig({LCT_PLATFORM:'linux',LCT_FEISHU_CONSUME:'0'}).consumeFeishu,false);
+ assert.equal(buildConfig({LCT_PLATFORM:'darwin',LCT_FEISHU_CONSUME:'1'}).consumeFeishu,true);
+ assert.throws(()=>buildConfig({LCT_NODE_ROLE:'workstation'}),/local 或 server/);
+});

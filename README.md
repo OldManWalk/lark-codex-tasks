@@ -6,7 +6,7 @@
 
 **飞书 ↔ Codex 任务群工作流**——把"常开机的服务器 + 飞书"变成你的任务托管中心：工作交接给服务器继续跑，或只带手机也能派活，审批与监督全程在飞书完成。
 
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Platform](https://img.shields.io/badge/platform-Linux%20%2B%20systemd-lightgrey) ![Runtime](https://img.shields.io/badge/runtime-Node%20%E2%89%A518-green) ![Tests](https://img.shields.io/badge/tests-342%20passed-brightgreen)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Platform](https://img.shields.io/badge/platform-Linux%20%2B%20systemd-lightgrey) ![Runtime](https://img.shields.io/badge/runtime-Node%20%E2%89%A518-green) ![Tests](https://img.shields.io/badge/tests-361%20passed-brightgreen)
 
 > 下班了任务没跑完？交接给服务器，地铁上用飞书审批接着干。
 > 手头只有手机？私聊机器人建个群，小事当场就办了。
@@ -51,6 +51,25 @@ lark-codex-tasks 围绕两个真实需求而生：
 | 干完的任务没沉淀 | `/done` 自动归档 Markdown 进知识库（git commit），可自然语言续接 |
 | 手机上没法操作 | 全部操作都在飞书完成：派活、审批、看日志、结算 |
 | AI 自动化不敢放权 | owner-only + 三档模式 + 自杀防护 + 凭证物理隔离 |
+
+## Mac 本机与 N100 服务器
+
+Mac 和 N100 可以分别安装，状态与执行环境互不影响。两端分别拥有自己的配置、`instance.json`、Codex Home、群 Attachment 和队列；将来统一控制台也只聚合逻辑任务，不复制这些运行状态。
+
+同一个飞书应用不能双活消费：独立应用可分别开启消费，共用应用时仅一端设置 `LCT_FEISHU_CONSUME=1`，另一端设 `0` 用于控制或 Handoff。Mac 默认 `local`，N100/Linux 默认 `server`。
+
+`/release` 只解除执行附着并保存 Resume，群进入 parked；`/done` 才归档解散。跨节点恢复会检查 `threadNode.id`，不会把 N100 的 thread ID 错当成 Mac 本地 Session。
+
+### macOS 安装入口
+
+```sh
+./install.sh init                 # 生成独立本机配置，不覆盖 N100
+node lct.cjs doctor
+node lct.cjs service install      # launchd
+node lct.cjs up
+```
+
+Mac 与 N100 共用同一飞书应用时，在启用本机服务前将本机 `LCT_FEISHU_CONSUME` 设为 `0`；使用独立应用时保持 `1`。
 
 ## 两个核心场景
 

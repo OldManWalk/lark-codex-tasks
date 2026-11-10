@@ -18,17 +18,30 @@
 - Web、群命令与受限 worker 动作使用同一资源服务；结果未知时保留请求记录并核查，不自动重复创建。
 - 区块版本与内容冲突保护人工编辑；读取、写入和用户访问分别记录。真实飞书写入、用户访问与跨平台验收尚未完成。
 
+## [0.6.0-rc.4] - 2026-11-10
+
+### Changed
+
+- 将公开文档、示例、测试标签和网站中的特定部署环境统一为“本地节点 / 服务器节点”，不再暴露具体主机型号、主机名、工作身份、账号标识或内网路径。
+- 保留平台中立的 Attachment、Handoff 和节点角色语义；macOS 仅作为安装平台说明出现，不指向维护者的具体设备。
+- 发布测试继续覆盖嵌套与扁平化两种源码布局，敏感信息扫描作为发布门禁执行。
+
+### Validation and limitations
+
+- 当前公开文件的密钥、用户 ID、群 ID、内网地址与历史精确标识检查均不包含维护者环境的真实值；测试用假密钥与扫描规则自身单独区分。
+- 本次清理不改变 rc.3 的执行协议或生产部署状态。
+
 ## [0.6.0-rc.3] - 2026-11-10
 
-此预发布版本正式纳入 Mac/N100 节点模型、Session Attachment、两阶段释放和 Codex 旧线程模型修复。
+此预发布版本正式纳入 本地节点/服务器 节点模型、Session Attachment、两阶段释放和 Codex 旧线程模型修复。
 
 ### Added
 
-- Mac 本机与 N100 服务器节点角色：独立 `instance.json`、状态目录与 `threadNode` 判定；`LCT_FEISHU_CONSUME=0` 支持共用飞书应用时停用本端事件消费，防止双活派活。
+- 本地节点与服务器节点节点角色：独立 `instance.json`、状态目录与 `threadNode` 判定；`LCT_FEISHU_CONSUME=0` 支持共用飞书应用时停用本端事件消费，防止双活派活。
 - Session Attachment 与两阶段释放：`/release` 将 active 群转为 parked，解除执行附着并保存 Resume；`/done` 才归档解散。运行、排队、审批或待投递未清空时拒绝释放。
 - `lct resume <任务ID>` 在同一节点返回精确 Codex 恢复命令；跨节点返回 `remote-result-handoff`，不直接复用服务器 thread ID。
 - 一个 Codex thread 最多一个 active 群执行入口；管理视图增加 parked 状态和 Attachment 节点信息。
-- Mac/N100 独立安装及后续联邦式融合设计。统一逻辑任务和只读控制台，不合并两端运行状态。
+- 本地节点/服务器 独立安装及后续联邦式融合设计。统一逻辑任务和只读控制台，不合并两端运行状态。
 
 ### Fixed
 
@@ -39,7 +52,7 @@
 
 - 全量回归 362 项：361 通过、1 项 macOS 专属测试在 Linux 上跳过、0 失败。
 - 真实旧线程隔离验证已从 `gpt-6.1-sol/high` 续接为 `k3.1-pro/high`；生产实例仍按各自维护窗口部署。
-- Mac 安装入口已提供，完整 Mac 飞书端到端验收仍需单独进行。
+- macOS 安装入口已提供，完整 macOS 飞书端到端验收仍需单独进行。
 - 自动跨机 Handoff、成果回收和统一控制台不属于本版本；本版本不等同于完整跨机续接。
 
 ## [0.6.0-rc.2] - 2026-10-20
@@ -187,7 +200,8 @@
 - **运维工具**：`/status` `/jobs` `/groups` `/logs` `/outbox`（死信核查）/ `/cleanup` `/adopt` `/auditgroups`；交互式 `install.sh init`（systemd user 服务）
 - **测试**：137 项验收测试覆盖会话隔离、队列幂等、重启对账、审批生命周期、死信管理、富文本受理、密钥脱敏、模型故障路径
 
-[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.6.0-rc.3...HEAD
+[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.6.0-rc.4...HEAD
+[0.6.0-rc.4]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.6.0-rc.3...v0.6.0-rc.4
 [0.6.0-rc.3]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.6.0-rc.2...v0.6.0-rc.3
 [0.6.0-rc.2]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.4.1...v0.6.0-rc.2
 [0.4.1]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.4.1

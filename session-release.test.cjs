@@ -13,7 +13,7 @@ function fixture(t){
  fs.mkdirSync(path.join(root,'workspace/a'),{recursive:true});
  const kb=path.join(root,'workspace/knowledge/content');fs.mkdirSync(kb,{recursive:true});execFileSync('git',['init','-q',kb]);
  sup.atomic(path.join(root,'.config/lark-codex-tasks/projects.json'),{a:path.join(root,'workspace/a')});
- const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner',LCT_PLATFORM:'linux',LCT_SANDBOX_KIND:'bwrap',LCT_NODE_LABEL:'N100-test'};
+ const proc=new EventEmitter();proc.env={LARK_OWNER_OPEN_ID:'owner',LCT_PLATFORM:'linux',LCT_SANDBOX_KIND:'bwrap',LCT_NODE_LABEL:'server-test'};
  const context=vm.createContext({require:n=>n==='node:os'?{...os,homedir:()=>root}:require(n),__dirname,module:{},process:proc,console,setTimeout,clearTimeout,setInterval,clearInterval});
  vm.runInContext(fs.readFileSync(path.join(__dirname,'lark-bridge.cjs'),'utf8')+`
  lark=async(args)=>({ok:true,data:{message_id:'om_fake',chat_id:'oc_new',reaction_id:'rid_fake'}});

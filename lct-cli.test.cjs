@@ -107,7 +107,7 @@ test('L10: resume on the thread node returns an exact Codex command',t=>{
 
 test('L11: a server thread never produces a fake local resume command',t=>{
  const {run,env,root}=fixture(t),ctx=lct.loadCtx(env),current=require('./runtime-info.cjs').identity(ctx.CFG),id='bbbbbbbbbbbb';
- const source={...current,id:'different-server',role:'server',label:'N100'};
+ const source={...current,id:'different-server',role:'server',label:'server'};
  const release={schemaVersion:1,kind:'codex-resume',jobId:id,chainId:'chain-b',threadId:'thread-b',threadNode:source,sourceCwd:root,generation:3,releasedAt:1};
  const dir=path.join(env.LCT_STATE_DIR,'jobs',id);fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'state.json'),JSON.stringify({id,release}));
  const r=run(['resume',id,'--json']);assert.equal(r.status,0,r.stderr);const out=JSON.parse(r.stdout);

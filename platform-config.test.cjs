@@ -14,9 +14,9 @@ test('P1: linux defaults are byte-identical to historical XDG layout',()=>{
 });
 
 test('P2: custom serviceName propagates to every default dir (multi-instance isolation)',()=>{
- const d=plat.defaultDirs({platform:'linux',home:'/home/tester',serviceName:'n100-agent'});
- for(const v of [d.configDir,d.stateDir,d.dataDir,d.cacheDir,d.logsDir])assert(v.includes('n100-agent'),v);
- assert(!d.workspaceRoot.includes('n100-agent'),'工作区不按实例分化');
+ const d=plat.defaultDirs({platform:'linux',home:'/home/tester',serviceName:'serverNode-agent'});
+ for(const v of [d.configDir,d.stateDir,d.dataDir,d.cacheDir,d.logsDir])assert(v.includes('serverNode-agent'),v);
+ assert(!d.workspaceRoot.includes('serverNode-agent'),'工作区不按实例分化');
 });
 
 test('P3: darwin defaults live under ~/Library',()=>{
@@ -45,10 +45,10 @@ test('P6: buildConfig exposes platform and platform-aware defaults',()=>{
  assert.equal(linux.platform,'linux');
  assert.equal(linux.configDir,'/home/tester/.config/lark-codex-tasks');
  assert.equal(linux.reportPdfFont,'/home/tester/.local/share/lark-codex-tasks/fonts/NotoSansSC.ttf');
- const mac=buildConfig({},'/Users/tester','darwin');
- assert.equal(mac.platform,'darwin');
- assert.equal(mac.logsDir,'/Users/tester/Library/Logs/lark-codex-tasks');
- assert.equal(mac.reportPdfFont,'/Users/tester/Library/Application Support/lark-codex-tasks/fonts/NotoSansSC.ttf');
+ const localNode=buildConfig({},'/Users/tester','darwin');
+ assert.equal(localNode.platform,'darwin');
+ assert.equal(localNode.logsDir,'/Users/tester/Library/Logs/lark-codex-tasks');
+ assert.equal(localNode.reportPdfFont,'/Users/tester/Library/Application Support/lark-codex-tasks/fonts/NotoSansSC.ttf');
 });
 
 test('P7: serviceManager prefers installed systemd unit, then launchd plist, else process',()=>{
@@ -77,7 +77,7 @@ test('P10: invalid LCT_PLATFORM is rejected',()=>{
  assert.throws(()=>buildConfig({LCT_PLATFORM:'plan9'},'/home/tester'),/LCT_PLATFORM 无效/);
 });
 
-test('P11: Mac and server nodes have independent roles and consumer policy',()=>{
+test('P11: local and server nodes have independent roles and consumer policy',()=>{
  assert.equal(buildConfig({LCT_PLATFORM:'darwin'}).nodeRole,'local');
  assert.equal(buildConfig({LCT_PLATFORM:'linux'}).nodeRole,'server');
  assert.equal(buildConfig({LCT_PLATFORM:'linux',LCT_FEISHU_CONSUME:'0'}).consumeFeishu,false);

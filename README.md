@@ -52,24 +52,24 @@ lark-codex-tasks 围绕两个真实需求而生：
 | 手机上没法操作 | 全部操作都在飞书完成：派活、审批、看日志、结算 |
 | AI 自动化不敢放权 | owner-only + 三档模式 + 自杀防护 + 凭证物理隔离 |
 
-## Mac 本机与 N100 服务器
+## 本地节点与服务器节点
 
-Mac 和 N100 可以分别安装，状态与执行环境互不影响。两端分别拥有自己的配置、`instance.json`、Codex Home、群 Attachment 和队列；将来统一控制台也只聚合逻辑任务，不复制这些运行状态。
+本地节点和服务器 可以分别安装，状态与执行环境互不影响。两端分别拥有自己的配置、`instance.json`、Codex Home、群 Attachment 和队列；将来统一控制台也只聚合逻辑任务，不复制这些运行状态。
 
-同一个飞书应用不能双活消费：独立应用可分别开启消费，共用应用时仅一端设置 `LCT_FEISHU_CONSUME=1`，另一端设 `0` 用于控制或 Handoff。Mac 默认 `local`，N100/Linux 默认 `server`。
+同一个飞书应用不能双活消费：独立应用可分别开启消费，共用应用时仅一端设置 `LCT_FEISHU_CONSUME=1`，另一端设 `0` 用于控制或 Handoff。macOS 默认 `local`，Linux 服务器 默认 `server`。
 
-`/release` 只解除执行附着并保存 Resume，群进入 parked；`/done` 才归档解散。跨节点恢复会检查 `threadNode.id`，不会把 N100 的 thread ID 错当成 Mac 本地 Session。
+`/release` 只解除执行附着并保存 Resume，群进入 parked；`/done` 才归档解散。跨节点恢复会检查 `threadNode.id`，不会把 服务器端的 thread ID 错当成 本地 Session。
 
 ### macOS 安装入口
 
 ```sh
-./install.sh init                 # 生成独立本机配置，不覆盖 N100
+./install.sh init                 # 生成独立本机配置，不影响服务器节点
 node lct.cjs doctor
 node lct.cjs service install      # launchd
 node lct.cjs up
 ```
 
-Mac 与 N100 共用同一飞书应用时，在启用本机服务前将本机 `LCT_FEISHU_CONSUME` 设为 `0`；使用独立应用时保持 `1`。
+本地节点与服务器 共用同一飞书应用时，在启用本机服务前将本机 `LCT_FEISHU_CONSUME` 设为 `0`；使用独立应用时保持 `1`。
 
 ## 两个核心场景
 
@@ -567,4 +567,4 @@ WSL2 实机验收仍待完成；Linux 测试通过不能替代 Windows 验收。
 
 当前使用已有 bot 身份读取原消息状态，执行前核对、执行中约每 5 秒巡检；不依赖独立撤回/编辑事件，因此有检测延迟。必须能读取对应原消息。查询失败时新任务保留排队等待；运行中的原消息持续 30 秒无法核对则请求停止并暂停核查。正文超长、不支持的编辑或无法确认停止时，不自动执行新稿。
 
-这是主分支候选能力，已在维护者实例部署，尚未包含在 v0.6.0-rc.2 标签中；真实飞书原生操作端到端验收仍待完成。后台/命令入口保持上文的手动恢复行为。本功能独立于默认关闭的 Session 工作台。Linux 回归和浏览器验证不能替代真实飞书与 Mac/WSL2 验收。
+这是主分支候选能力，已在维护者实例部署，尚未包含在 v0.6.0-rc.2 标签中；真实飞书原生操作端到端验收仍待完成。后台/命令入口保持上文的手动恢复行为。本功能独立于默认关闭的 Session 工作台。Linux 回归和浏览器验证不能替代真实飞书与 macOS/WSL2 验收。

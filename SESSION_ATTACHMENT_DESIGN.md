@@ -13,7 +13,7 @@
 
 `threadNode.id` 是判断能否直接恢复的依据，`local/server` 是可读角色：
 
-- Mac 默认 `local`，N100 默认 `server`，可用 `LCT_NODE_ROLE` 显式覆盖。
+- macOS 默认 `local`，服务器默认 `server`，可用 `LCT_NODE_ROLE` 显式覆盖。
 - 同一节点：可以 `thread/resume` 原 thread，并保留原 cwd。
 - 不同节点：不能直接输入服务器 thread ID。先回收固定成果和返回摘要，再在本地创建或恢复关联 thread。
 - 不用操作系统名称代替节点 ID。另一台 Linux 也可能是本机，同一台机器的不同 LarkNotify 实例也有不同 node ID。
@@ -63,7 +63,7 @@ group dissolved / binding removed / archive retained
 
 ## 7. 本机与服务器后续融合
 
-融合的目标是统一任务视图与交接协议，不是把 Mac 和 N100 合并成一个双活进程。
+融合的目标是统一任务视图与交接协议，不是把 本地节点和服务器 合并成一个双活进程。
 
 - **节点独立**：配置、状态目录、Codex Home、队列和本地工具保持独立。节点 ID 不随同步复制。
 - **逻辑统一**：chain 是跨节点主键；每次交接产生新的 generation 和 Attachment，旧执行事件不能跨代生效。
@@ -73,7 +73,7 @@ group dissolved / binding removed / archive retained
 
 推荐的演进顺序：
 
-1. 独立 Mac/N100 安装与本设计中的 Attachment、release、resume。
+1. 独立 本地节点/服务器 安装与本设计中的 Attachment、release、resume。
 2. Handoff manifest、固定输入 checkpoint、目标能力预检和接管回执。
 3. 结果发布与跨机回收，完成 `release -> local resume -> done`。
 4. 只读统一控制台与可选主备事件路由。最后才考虑自动化主备切换，且仍需防止双写。

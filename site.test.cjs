@@ -24,5 +24,5 @@ test('local and server topology is visible without claiming completed fusion',t=
  const output=fixture(t);build({output});const home=fs.readFileSync(path.join(output,'index.html'),'utf8'),updates=fs.readFileSync(path.join(output,'updates/index.html'),'utf8');
  assert(home.includes('id="nodes"'));assert(home.includes('LCT_FEISHU_CONSUME=0'));assert(home.includes('/release'));
  assert(home.includes('自动跨机 Handoff、成果回收和统一控制台仍按后续阶段验收'));
- assert(updates.includes('id="v0.6.0-rc.3"'));assert(updates.includes('公开预发布'));assert(!updates.includes('id="session-attachments"'));
+ assert(updates.includes('id="v0.6.0-rc.4"'));assert(updates.includes('公开预发布'));assert(!updates.includes('id="session-attachments"'));
 });

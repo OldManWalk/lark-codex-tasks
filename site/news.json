@@ -1,20 +1,5 @@
 [
   {
-    "id": "session-attachments",
-    "date": "2026-11-10",
-    "title": "Mac 与服务器独立运行，用两阶段释放交接执行权",
-    "summary": "新增本机/服务器节点角色、Session Attachment、/release、parked 群和节点感知的 lct resume。",
-    "status": "candidate",
-    "body": [
-      "Mac 与 N100 可以分别安装 LarkNotify，各自保留配置、instance.json、Codex Home、队列和任务状态。两端融合以逻辑任务链和 Attachment 为边界，不直接复制运行目录。",
-      "/release 在无运行、排队、未决审批和待投递时解除群与执行 Session 的附着。群进入 parked，普通消息不再执行；/done 仍是独立的归档解散阶段。",
-      "lct resume 会检查 threadNode.id。同节点返回原线程恢复命令，跨节点明确要求成果回收，不把 N100 thread ID 当成 Mac 本地 Session。",
-      "同一个飞书应用只能有一个活跃消费端。共用应用时另一端设置 LCT_FEISHU_CONSUME=0；使用独立应用时可分别开启。",
-      "同时修复 Codex 续接旧线程时仍沿用历史模型的问题：每轮读取 CCSwitch 生效配置，并显式覆盖 thread/start、thread/resume 和 turn/start。",
-      "这些是候选基础能力。自动跨机 Handoff、结果回收、统一控制台和生产部署范围需要分别验收，不能仅据此宣称完整跨机续接已经上线。"
-    ]
-  },
-  {
     "id": "withdraw-edit",
     "date": "2026-10-21",
     "title": "直接在飞书原消息上撤回或编辑任务",

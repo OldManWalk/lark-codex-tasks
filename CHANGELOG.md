@@ -4,14 +4,6 @@
 
 ## [Unreleased]
 
-- 增加 Mac 本机与 N100 服务器节点角色：独立 `instance.json`、状态目录与 `threadNode` 判定；`LCT_FEISHU_CONSUME=0` 支持共用飞书应用时停用本端事件消费，防止双活派活。
-- 增加 Session Attachment 与两阶段释放：`/release` 将 active 群转为 parked，解除执行附着并保存 Resume；`/done` 才归档解散。运行、排队、审批或待投递未清空时拒绝释放。
-- `lct resume <任务ID>` 在同一节点返回精确 Codex 恢复命令；跨节点返回 `remote-result-handoff`，不直接复用服务器 thread ID。
-- 一个 Codex thread 最多一个 active 群执行入口；管理视图增加 parked 状态和 Attachment 节点信息。
-- 修复 CCSwitch 切换后旧 Codex 线程仍保留历史模型的问题：每轮读取有效配置，并显式覆盖新建、续接和 turn 的模型与思考强度，禁止新线程静默 fallback。
-- 补充 Mac/N100 独立安装及后续联邦式融合设计。自动跨机 Handoff、成果回收和统一控制台仍属于后续验收范围，本候选不等同于完整跨机续接。
-- 候选全量回归 362 项：361 通过、1 项 macOS 专属测试在 Linux 上跳过、0 失败。
-
 - 新增项目官网与更新页：构建时读取公开版本记录，单独标注候选进展，支持 Atom 订阅与 GitHub Pages 自动部署。
 
 - 增加指令撤回和重新编辑：Web 会话详情/队列及 `/withdraw`、`/edit` 共用持久控制入口，支持待执行指令、执行中任务和等待建群的派活请求。
@@ -25,6 +17,30 @@
 - 增加默认关闭的 Session 工作台候选：稳定主文档、新版公告区块、能力检查和续接前读取。
 - Web、群命令与受限 worker 动作使用同一资源服务；结果未知时保留请求记录并核查，不自动重复创建。
 - 区块版本与内容冲突保护人工编辑；读取、写入和用户访问分别记录。真实飞书写入、用户访问与跨平台验收尚未完成。
+
+## [0.6.0-rc.3] - 2026-11-10
+
+此预发布版本正式纳入 Mac/N100 节点模型、Session Attachment、两阶段释放和 Codex 旧线程模型修复。
+
+### Added
+
+- Mac 本机与 N100 服务器节点角色：独立 `instance.json`、状态目录与 `threadNode` 判定；`LCT_FEISHU_CONSUME=0` 支持共用飞书应用时停用本端事件消费，防止双活派活。
+- Session Attachment 与两阶段释放：`/release` 将 active 群转为 parked，解除执行附着并保存 Resume；`/done` 才归档解散。运行、排队、审批或待投递未清空时拒绝释放。
+- `lct resume <任务ID>` 在同一节点返回精确 Codex 恢复命令；跨节点返回 `remote-result-handoff`，不直接复用服务器 thread ID。
+- 一个 Codex thread 最多一个 active 群执行入口；管理视图增加 parked 状态和 Attachment 节点信息。
+- Mac/N100 独立安装及后续联邦式融合设计。统一逻辑任务和只读控制台，不合并两端运行状态。
+
+### Fixed
+
+- 修复 CCSwitch 切换后旧 Codex 线程仍保留历史模型的问题：每轮读取有效配置，并显式覆盖新建、续接和 turn 的模型与思考强度，禁止新线程静默 fallback。
+- 发布测试同时覆盖包含 `release/` 和扁平化两种布局，避免新增设计文档被误判为缺失。
+
+### Validation and limitations
+
+- 全量回归 362 项：361 通过、1 项 macOS 专属测试在 Linux 上跳过、0 失败。
+- 真实旧线程隔离验证已从 `gpt-6.1-sol/high` 续接为 `k3.1-pro/high`；生产实例仍按各自维护窗口部署。
+- Mac 安装入口已提供，完整 Mac 飞书端到端验收仍需单独进行。
+- 自动跨机 Handoff、成果回收和统一控制台不属于本版本；本版本不等同于完整跨机续接。
 
 ## [0.6.0-rc.2] - 2026-10-20
 
@@ -171,7 +187,8 @@
 - **运维工具**：`/status` `/jobs` `/groups` `/logs` `/outbox`（死信核查）/ `/cleanup` `/adopt` `/auditgroups`；交互式 `install.sh init`（systemd user 服务）
 - **测试**：137 项验收测试覆盖会话隔离、队列幂等、重启对账、审批生命周期、死信管理、富文本受理、密钥脱敏、模型故障路径
 
-[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.6.0-rc.2...HEAD
+[Unreleased]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.6.0-rc.3...HEAD
+[0.6.0-rc.3]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.6.0-rc.2...v0.6.0-rc.3
 [0.6.0-rc.2]: https://github.com/OldManWalk/lark-codex-tasks/compare/v0.4.1...v0.6.0-rc.2
 [0.4.1]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.4.1
 [0.4.0]: https://github.com/OldManWalk/lark-codex-tasks/releases/tag/v0.4.0
